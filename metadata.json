@@ -1,0 +1,5 @@
+{
+  "name": "Birthday Buddy (BB)",
+  "description": "A smart, thoughtful birthday reminder app with WhatsApp integration, AI greetings, and relationship management.",
+  "requestFramePermissions": []
+}
