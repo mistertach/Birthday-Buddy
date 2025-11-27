@@ -1,6 +1,7 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Contact, StreakData } from './types';
-import { loadContacts, saveContacts, loadStreak, updateStreak, getDaysUntil, seedData, downloadBackup, loadCategories, saveCategories, getCategoryDotColor, getNextBirthday } from './utils';
+import { loadContacts, saveContacts, loadStreak, updateStreak, getDaysUntil, seedData, downloadBackup, loadCategories, saveCategories, getCategoryDotColor, getNextBirthday, getBirthdayStatus, getVisualDate } from './utils';
 import { syncFromSheet, syncToSheet } from './services/sheets';
 import { AddEditContact } from './components/AddEditContact';
 import { ContactCard } from './components/ContactCard';
@@ -35,7 +36,6 @@ function App() {
   // Cloud Sync State
   const [sheetUrl, setSheetUrl] = useState(() => {
     const stored = localStorage.getItem('confetti_sheet_url');
-    // If user has never set it (null), use default. If they cleared it (''), respect that.
     return stored !== null ? stored : DEFAULT_SHEET_URL;
   });
   const [isSyncing, setIsSyncing] = useState(false);
@@ -47,10 +47,7 @@ function App() {
     setCategories(loadCategories());
 
     const loadData = async () => {
-      // 1. Load Local First (Instant)
       const localContacts = loadContacts();
-      
-      // Check if current data is the old default (Alice/Bob/Mom)
       const isOldDefault = localContacts.length > 0 && 
                            localContacts.length <= 3 && 
                            localContacts.some(c => c.name === 'Alice Johnson');
@@ -58,12 +55,10 @@ function App() {
       if (localContacts.length > 0 && !isOldDefault) {
         setContacts(localContacts);
       } else {
-        // If empty or using old default, load the new seed data
         setContacts(seedData);
-        saveContacts(seedData); // Persist immediately
+        saveContacts(seedData);
       }
 
-      // 2. If Sheet connected, Sync (Pull)
       if (sheetUrl) {
         await handlePullFromCloud(sheetUrl, false);
       }
@@ -73,12 +68,9 @@ function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Handle saving contact changes
   const updateContacts = async (newContacts: Contact[]) => {
       setContacts(newContacts);
-      saveContacts(newContacts); // Local save
-      
-      // Auto-save to cloud if connected (Fire & Forget)
+      saveContacts(newContacts); 
       if (sheetUrl) {
           setIsSyncing(true);
           syncToSheet(sheetUrl, newContacts).finally(() => setIsSyncing(false));
@@ -90,14 +82,12 @@ function App() {
     saveCategories(newCats);
   };
 
-  // Sync Handlers
   const handlePullFromCloud = async (url: string = sheetUrl, showAlert = true) => {
     if (!url) return;
     setIsSyncing(true);
     try {
         const cloudContacts = await syncFromSheet(url);
         if (cloudContacts && Array.isArray(cloudContacts)) {
-            // Only update if we actually got data back
             if (cloudContacts.length > 0) {
               setContacts(cloudContacts);
               saveContacts(cloudContacts);
@@ -131,7 +121,6 @@ function App() {
     }
   };
 
-  // Handlers
   const handleSaveContact = (contact: Contact) => {
     let updated;
     if (editingContact) {
@@ -151,26 +140,31 @@ function App() {
       }
   };
 
-  const handleWish = (id: string) => {
-    const newStreak = updateStreak();
-    setStreak(newStreak);
-    
-    // Update last wished year
+  const handleWish = (id: string, forceState?: boolean) => {
     const updated = contacts.map(c => {
         if (c.id === id) {
-            return { ...c, lastWishedYear: new Date().getFullYear() };
+            const currentYear = new Date().getFullYear();
+            // If forceState is true: Mark wished (year = current)
+            // If forceState is false: Unmark (year = undefined)
+            // If undefined: Default to Mark wished
+            const shouldMark = forceState !== undefined ? forceState : true;
+            
+            if (shouldMark) {
+               updateStreak(); // Only increment streak on positive wish
+               return { ...c, lastWishedYear: currentYear };
+            } else {
+               return { ...c, lastWishedYear: undefined };
+            }
         }
         return c;
     });
+    setStreak(loadStreak()); // Refresh streak UI
     updateContacts(updated);
-    // Close modal if wishing from calendar popup
-    setSelectedContact(undefined);
   };
 
   const handleSheetUrlSave = (url: string) => {
       setSheetUrl(url);
       localStorage.setItem('confetti_sheet_url', url);
-      // Try to pull immediately on save
       if (url) handlePullFromCloud(url, true);
   };
 
@@ -234,7 +228,6 @@ function App() {
     reader.readAsText(file);
   };
 
-  // Derived State
   const sortedContacts = useMemo(() => {
     let filtered = contacts.filter(c => 
       c.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -244,23 +237,22 @@ function App() {
       filtered = filtered.filter(c => c.relationship === filterRel);
     }
 
+    // Sort using visual date (keeps current month passed dates at the top)
     return filtered.sort((a, b) => {
-      const daysA = getDaysUntil(a.birthday);
-      const daysB = getDaysUntil(b.birthday);
-      return daysA - daysB;
+      const dateA = getVisualDate(a.birthday);
+      const dateB = getVisualDate(b.birthday);
+      return dateA.getTime() - dateB.getTime();
     });
   }, [contacts, searchQuery, filterRel]);
 
-  // Helper to render list with month separators
   const renderListWithSeparators = () => {
     const groups: React.ReactNode[] = [];
     let lastMonth = '';
 
-    // Handle "Today" logic separately if needed, but for monthly grouping:
     sortedContacts.forEach((contact) => {
-        // Calculate the next birthday for this contact to determine its "Upcoming Month"
-        const nextBday = getNextBirthday(contact.birthday);
-        const monthName = nextBday.toLocaleString('default', { month: 'long' });
+        // Use visual date for headers too, so they match the sorting
+        const visualDate = getVisualDate(contact.birthday);
+        const monthName = visualDate.toLocaleString('default', { month: 'long' });
         
         if (monthName !== lastMonth) {
             groups.push(
@@ -271,7 +263,6 @@ function App() {
             lastMonth = monthName;
         }
 
-        // Find parent if any
         const parent = contact.parentId ? contacts.find(c => c.id === contact.parentId) : undefined;
 
         groups.push(
@@ -297,14 +288,11 @@ function App() {
     return <div className="space-y-2 pb-20">{groups}</div>;
   };
 
-  // Helper to generate calendar month order starting from current month
   const calendarMonths = useMemo(() => {
-      const currentMonthIdx = new Date().getMonth(); // 0 = Jan
+      const currentMonthIdx = new Date().getMonth(); 
       const months = [];
       for(let i=0; i<12; i++) {
           const mIdx = (currentMonthIdx + i) % 12;
-          // Determine year for display (Current year, or Next year if wrapped)
-          // Actually for grouping, we just need the month index.
           months.push(mIdx);
       }
       return months;
@@ -312,8 +300,6 @@ function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20 max-w-xl mx-auto shadow-2xl shadow-slate-200 border-x border-slate-100 relative">
-      
-      {/* Header */}
       <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 tracking-tight">Birthday Buddy <span className="text-indigo-500">(BB)</span></h1>
@@ -345,10 +331,7 @@ function App() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="p-4 space-y-4">
-        
-        {/* Search & Filter */}
         <div className="flex flex-col gap-3 sticky top-[73px] z-20 bg-slate-50 pb-2">
             <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -384,22 +367,18 @@ function App() {
                 {renderListWithSeparators()}
             </div>
         ) : (
-            /* Calendar View */
             <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-center animate-fade-in">
                 <CalendarIcon size={48} className="mx-auto text-slate-200 mb-4" />
                 <h3 className="text-lg font-bold text-slate-800">Calendar View</h3>
                 <p className="text-slate-500 mb-6">Tap a name to see details.</p>
                 
                 <div className="grid grid-cols-1 gap-4 text-left">
-                    {/* Render months starting from Current Month */}
                     {calendarMonths.map((monthIndex) => {
                         const monthContacts = contacts.filter(c => new Date(c.birthday).getUTCMonth() === monthIndex);
-                        // Optional: Sort by day in month
                         monthContacts.sort((a,b) => new Date(a.birthday).getUTCDate() - new Date(b.birthday).getUTCDate());
 
                         if (monthContacts.length === 0) return null;
                         
-                        // Fake year 2024 just to get locale string name
                         const monthName = new Date(2024, monthIndex, 1).toLocaleString('default', { month: 'long' });
                         
                         return (
@@ -407,7 +386,12 @@ function App() {
                                 <h4 className="font-bold text-indigo-900 mb-2 text-sm sticky top-0 bg-white py-1">{monthName}</h4>
                                 <div className="flex flex-wrap gap-2">
                                     {monthContacts.map(c => {
-                                      const dotColor = getCategoryDotColor(c.relationship);
+                                      const status = getBirthdayStatus(c);
+                                      // Status Color Logic
+                                      let dotColor = getCategoryDotColor(c.relationship);
+                                      if (status === 'missed') dotColor = 'bg-rose-500';
+                                      if (status === 'wished') dotColor = 'bg-green-500';
+
                                       return (
                                         <button 
                                             key={c.id} 
@@ -429,7 +413,6 @@ function App() {
         )}
       </main>
 
-      {/* Floating Action Button */}
       <button
         onClick={() => setIsModalOpen(true)}
         className="fixed bottom-24 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20"
@@ -437,7 +420,6 @@ function App() {
         <Plus size={28} strokeWidth={2.5} />
       </button>
 
-      {/* Bottom Navigation */}
       <nav className="fixed bottom-0 left-0 right-0 bg-white border-t border-slate-100 px-6 py-3 flex justify-around items-center z-30 max-w-xl mx-auto">
         <button 
             onClick={() => setView('list')}
@@ -455,7 +437,6 @@ function App() {
         </button>
       </nav>
 
-      {/* Add/Edit Modal */}
       {isModalOpen && (
         <AddEditContact 
             onClose={() => { setIsModalOpen(false); setEditingContact(undefined); }} 
@@ -466,7 +447,6 @@ function App() {
         />
       )}
 
-      {/* Settings Modal */}
       {isSettingsOpen && (
         <SettingsModal 
             onClose={() => setIsSettingsOpen(false)}
@@ -482,7 +462,6 @@ function App() {
         />
       )}
 
-      {/* Full Detail Modal (Calendar Pop) */}
       {selectedContact && (
          <ContactDetailModal 
             contact={selectedContact}

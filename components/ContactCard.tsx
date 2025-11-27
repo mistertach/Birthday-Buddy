@@ -1,13 +1,14 @@
+
 import React, { useState } from 'react';
 import { Contact, GreetingTemplate } from '../types';
-import { getDaysUntil, getAgeTurning, getCategoryColor } from '../utils';
-import { MessageCircle, Edit2, Sparkles, StickyNote, Link } from 'lucide-react';
+import { getDaysUntil, getAgeTurning, getCategoryColor, getBirthdayStatus } from '../utils';
+import { MessageCircle, Edit2, Sparkles, StickyNote, Link, Check, CheckCircle } from 'lucide-react';
 import { AIGenerator } from './AIGenerator';
 
 interface Props {
   contact: Contact;
   parentContact?: Contact;
-  onWish: (contactId: string) => void;
+  onWish: (contactId: string, status?: boolean) => void;
   onEdit: (contact: Contact) => void;
 }
 
@@ -23,17 +24,18 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
 
   const daysUntil = getDaysUntil(contact.birthday);
   const turningAge = getAgeTurning(contact.birthday, contact.yearUnknown);
+  const status = getBirthdayStatus(contact);
   
-  const isToday = daysUntil === 0;
-  const isSoon = daysUntil > 0 && daysUntil <= 7;
+  const isToday = status === 'today';
+  const isMissed = status === 'missed';
+  const isWished = status === 'wished';
+  
   const categoryColor = getCategoryColor(contact.relationship);
 
-  // Format Date: "06 Jan"
   const dateObj = new Date(contact.birthday);
   const dayStr = dateObj.getUTCDate();
   const monthStr = dateObj.toLocaleString('default', { month: 'short', timeZone: 'UTC' });
 
-  // Determine phone number to use (Parent's if linked, otherwise contact's)
   const phoneToUse = parentContact ? parentContact.phone : contact.phone;
 
   const handleWhatsApp = (msg: string) => {
@@ -43,16 +45,40 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
       : `https://wa.me/?text=${text}`;
     
     window.open(url, '_blank');
-    onWish(contact.id);
+    onWish(contact.id, true);
     setShowActions(false);
   };
 
+  const toggleWished = () => {
+    // If currently wished, toggle to false. Else true.
+    onWish(contact.id, !isWished);
+  };
+
+  // Dynamic Styles based on Status
+  let borderClass = 'border-slate-100';
+  if (isToday) borderClass = 'border-rose-200 ring-2 ring-rose-100 bg-rose-50/20';
+  if (isMissed) borderClass = 'border-red-200 bg-red-50/30';
+  if (isWished) borderClass = 'border-green-200 bg-green-50/50 opacity-75';
+
   return (
-    <div className={`group bg-white rounded-lg border transition-all hover:shadow-md ${isToday ? 'border-rose-200 ring-2 ring-rose-100' : 'border-slate-100'}`}>
+    <div className={`group bg-white rounded-lg border transition-all hover:shadow-md ${borderClass}`}>
       
       {/* Main Row */}
       <div className="flex items-center p-3 gap-3">
         
+        {/* Toggle Button (Tick) */}
+        <button 
+           onClick={toggleWished}
+           className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all border shadow-sm ${
+              isWished 
+                ? 'bg-green-500 border-green-500 text-white' 
+                : 'bg-white border-slate-300 text-slate-300 hover:border-green-400 hover:text-green-400'
+           }`}
+           title={isWished ? "Mark as Pending" : "Mark as Wished"}
+        >
+            <Check size={18} strokeWidth={3} />
+        </button>
+
         {/* Date Box */}
         <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg border ${categoryColor} bg-opacity-10 shrink-0`}>
            <span className="text-sm font-bold leading-none">{dayStr}</span>
@@ -62,15 +88,15 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
         {/* Info Section */}
         <div className="flex-1 min-w-0">
            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-slate-800 truncate text-base">{contact.name}</h3>
-              {/* Relationship Badge */}
+              <h3 className={`font-semibold text-base truncate ${isWished ? 'text-slate-500 line-through' : 'text-slate-800'}`}>
+                  {contact.name}
+              </h3>
               <span className={`text-[10px] px-1.5 py-0.5 rounded-full font-medium border truncate max-w-[80px] ${categoryColor} bg-white`}>
                 {contact.relationship}
               </span>
            </div>
            
            <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500 mt-0.5">
-              {/* Parent Link Indicator */}
               {parentContact && (
                  <span className="flex items-center gap-1 text-indigo-600 bg-indigo-50 px-1 rounded">
                     <Link size={10} />
@@ -78,19 +104,20 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
                  </span>
               )}
 
-              {/* Status Indicators */}
+              {isMissed && <span className="text-red-600 font-bold flex items-center gap-1">⚠️ MISSED</span>}
               {isToday && <span className="text-rose-600 font-bold flex items-center gap-1">🎉 TODAY</span>}
-              {!isToday && isSoon && <span className="text-amber-600 font-medium">{daysUntil} days left</span>}
-              {!isToday && !isSoon && <span>In {daysUntil} days</span>}
+              
+              {!isToday && !isMissed && daysUntil <= 7 && <span className="text-amber-600 font-medium">{daysUntil} days left</span>}
+              {!isToday && !isMissed && daysUntil > 7 && <span>In {daysUntil} days</span>}
 
-              {/* Age (Only if known) */}
+              {/* If missed, we don't show "In 365 days". We just show Missed. */}
+              
               {!contact.yearUnknown && turningAge !== null && (
                  <>
                   <span>•</span>
                   <span>Turns {turningAge}</span>
                  </>
               )}
-              {/* Notes Indicator */}
               {contact.notes && (
                   <>
                     <span>•</span>
@@ -105,7 +132,7 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
            <button 
               onClick={() => setShowActions(!showActions)}
               className={`p-2 rounded-full transition-colors ${showActions ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:bg-slate-50 hover:text-indigo-600'}`}
-              title={parentContact ? `Message ${parentContact.name}` : "Send Wish"}
+              title="Send Message"
            >
               <MessageCircle size={18} />
            </button>

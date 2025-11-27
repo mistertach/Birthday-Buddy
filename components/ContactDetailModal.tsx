@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Contact, GreetingTemplate } from '../types';
-import { getAgeTurning, formatDateFriendly, getCategoryColor } from '../utils';
-import { X, Phone, User, Calendar, StickyNote, Edit2, Sparkles, ExternalLink, Link } from 'lucide-react';
+import { getAgeTurning, formatDateFriendly, getCategoryColor, getBirthdayStatus } from '../utils';
+import { X, Phone, User, Calendar, StickyNote, Edit2, Sparkles, ExternalLink, Link, CheckCircle, Circle } from 'lucide-react';
 import { AIGenerator } from './AIGenerator';
 
 interface Props {
@@ -9,7 +9,7 @@ interface Props {
   parentContact?: Contact;
   onClose: () => void;
   onEdit: (c: Contact) => void;
-  onWish: (id: string) => void;
+  onWish: (id: string, status?: boolean) => void;
 }
 
 const PRESET_MESSAGES: GreetingTemplate[] = [
@@ -22,6 +22,8 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
   const categoryColor = getCategoryColor(contact.relationship);
   const turningAge = getAgeTurning(contact.birthday, contact.yearUnknown);
   const formattedDate = formatDateFriendly(contact.birthday, contact.yearUnknown);
+  const status = getBirthdayStatus(contact);
+  const isWished = status === 'wished';
 
   const phoneToUse = parentContact ? parentContact.phone : contact.phone;
 
@@ -32,7 +34,7 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
       : `https://wa.me/?text=${text}`;
     
     window.open(url, '_blank');
-    onWish(contact.id);
+    onWish(contact.id, true);
   };
 
   return (
@@ -68,6 +70,23 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
         {/* Body (Scrollable) */}
         <div className="p-6 overflow-y-auto space-y-6">
             
+            {/* Status Toggle */}
+            <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
+               <span className="text-sm font-semibold text-slate-700">Birthday Status</span>
+               <button 
+                  onClick={() => onWish(contact.id, !isWished)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                     isWished ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white text-slate-500 border border-slate-300'
+                  }`}
+               >
+                  {isWished ? (
+                    <> <CheckCircle size={14}/> Wished </>
+                  ) : (
+                    <> <Circle size={14}/> Pending </>
+                  )}
+               </button>
+            </div>
+
             {/* Info Grid */}
             <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">

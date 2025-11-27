@@ -1,3 +1,4 @@
+
 import { Contact, StreakData, ReminderType } from './types';
 
 // Storage Keys
@@ -61,6 +62,39 @@ export const getNextBirthday = (birthdayStr: string): Date => {
   return nextBirthday;
 };
 
+/**
+ * Returns a date object used for VISUAL sorting in the list.
+ * CRITICAL CHANGE: If a birthday is in the CURRENT MONTH but has passed,
+ * we still want it to appear in the "Current Month" group (Year = CurrentYear),
+ * NOT jumped to next year.
+ * 
+ * Birthdays in previous months are pushed to next year.
+ */
+export const getVisualDate = (birthdayStr: string): Date => {
+    const today = new Date();
+    // Reset time to avoid timezone offset issues during simple comparison
+    today.setHours(0,0,0,0); 
+    
+    const currentMonth = today.getMonth();
+    const currentYear = today.getFullYear();
+
+    const bday = new Date(birthdayStr);
+    const bMonth = bday.getUTCMonth();
+    const bDay = bday.getUTCDate();
+
+    let targetYear = currentYear;
+
+    // If the birthday month is earlier than this month (e.g. Jan vs Nov),
+    // it belongs to next year's cycle.
+    if (bMonth < currentMonth) {
+        targetYear = currentYear + 1;
+    }
+    // If bMonth >= currentMonth, keep it in currentYear so it stays visible 
+    // in the list, even if the day has passed.
+
+    return new Date(targetYear, bMonth, bDay);
+};
+
 export const getDaysUntil = (birthdayStr: string): number => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -90,10 +124,46 @@ export const getAgeTurning = (birthdayStr: string, yearUnknown?: boolean): numbe
   const birthYear = new Date(birthdayStr).getUTCFullYear();
   const age = next.getFullYear() - birthYear;
   
-  // Safety check: if age is absurd (e.g. > 120 or < 0), likely a data error, return null
   if (age > 120 || age < 0) return null;
   
   return age;
+};
+
+/**
+ * Determines the status of the birthday relative to the current calendar year.
+ * Refined logic:
+ * - Today: Exact match.
+ * - Missed: Only if it was earlier THIS MONTH and not wished.
+ * - Upcoming: Everything else (later this month, or next months/year).
+ */
+export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'today' | 'upcoming' => {
+  const today = new Date();
+  today.setHours(0,0,0,0);
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  
+  // 1. Check if explicitly wished this year
+  if (contact.lastWishedYear === currentYear) {
+    return 'wished';
+  }
+
+  // 2. Date Logic
+  const bday = new Date(contact.birthday);
+  const bMonth = bday.getUTCMonth();
+  const bDay = bday.getUTCDate();
+  
+  // Check Today
+  if (bMonth === currentMonth && bDay === today.getDate()) {
+    return 'today';
+  }
+  
+  // Check Missed: STRICTLY restricted to CURRENT MONTH passed dates.
+  // We do not mark Jan/Feb as missed if we are in Nov. They are just 'upcoming' next year.
+  if (bMonth === currentMonth && bDay < today.getDate()) {
+    return 'missed';
+  }
+  
+  return 'upcoming';
 };
 
 // Storage Helpers
@@ -152,7 +222,6 @@ export const updateStreak = () => {
   } else if (current.lastWishedDate === null) {
     newCount = 1;
   } 
-  // If missed a day, it resets to 1 (since they wished today)
 
   const newData = { count: newCount, lastWishedDate: today };
   localStorage.setItem(STORAGE_KEY_STREAK, JSON.stringify(newData));
