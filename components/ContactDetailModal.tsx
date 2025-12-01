@@ -20,8 +20,8 @@ const PRESET_MESSAGES: GreetingTemplate[] = [
 export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, onClose, onEdit, onWish }) => {
   const [showAI, setShowAI] = useState(false);
   const categoryColor = getCategoryColor(contact.relationship);
-  const turningAge = getAgeTurning(contact.birthday, contact.yearUnknown);
-  const formattedDate = formatDateFriendly(contact.birthday, contact.yearUnknown);
+  const turningAge = getAgeTurning(contact.day, contact.month, contact.year);
+  const formattedDate = formatDateFriendly(contact.day, contact.month, contact.year);
   const status = getBirthdayStatus(contact);
   const isWished = status === 'wished';
 
@@ -96,7 +96,7 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
                     <p className="text-slate-800 font-medium">{formattedDate}</p>
                 </div>
                 
-                {!contact.yearUnknown && turningAge !== null && (
+                {contact.year && turningAge !== null && (
                     <div className="space-y-1">
                         <label className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
                             <User size={12} /> Turning

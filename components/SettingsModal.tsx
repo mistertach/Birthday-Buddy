@@ -192,11 +192,15 @@ export const SettingsModal: React.FC<Props> = ({
                     <div className="bg-rose-50 border border-rose-100 p-3 rounded-lg mb-4 flex gap-2">
                         <AlertTriangle size={24} className="text-rose-500 shrink-0" />
                         <div>
-                            <p className="text-xs text-rose-800 font-bold mb-1">Update Script Required</p>
+                            <p className="text-xs text-rose-800 font-bold mb-1">TRIPLE-COLUMN UPDATE REQUIRED</p>
                             <p className="text-[10px] text-rose-700 leading-tight">
-                                Because you changed columns, <strong>you must update the Apps Script</strong> code.
+                                To fix the "date shifted by 1 day" bug, we now use separate <strong>bDay, bMonth, bYear</strong> columns.
                                 <br/>
-                                1. Copy Code below. 2. Paste in Script Editor. 3. <strong>Deploy New Version</strong>.
+                                1. Delete old 'birthday' column in Sheet.
+                                <br/>
+                                2. Copy Code below & Update Script.
+                                <br/>
+                                3. Click "Push to Cloud" to migrate data.
                             </p>
                         </div>
                     </div>
@@ -260,7 +264,7 @@ export const SettingsModal: React.FC<Props> = ({
                             <ol className="list-decimal list-inside text-xs text-slate-600 space-y-2 mb-4">
                                 <li>Create a new Google Sheet.</li>
                                 <li><strong>Rename Columns (Row 1) exactly:</strong></li>
-                                <li className="font-mono text-[10px] bg-slate-100 p-1 rounded">id, name, birthday, knownyearofbirth, phone, relationship, reminderType, notes, lastWishedYear, parentId</li>
+                                <li className="font-mono text-[10px] bg-slate-100 p-1 rounded">id, name, bDay, bMonth, bYear, phone, relationship, reminderType, notes, lastWishedYear, parentId</li>
                                 <li>Go to <strong>Extensions &gt; Apps Script</strong>.</li>
                                 <li>Paste the code below (Replace old code).</li>
                                 <li><strong>UPDATE the FRONTEND_URL</strong> at the top!</li>

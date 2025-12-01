@@ -56,7 +56,6 @@ export const APPS_SCRIPT_CODE = `
 // !!! REPLACE THIS WITH YOUR DEPLOYED APP URL !!!
 const FRONTEND_URL = 'https://birthday-buddy.web.app'; 
 
-// Helper to find column index by name (case insensitive)
 function getColumnIndex(headers, name) {
   return headers.indexOf(name.toLowerCase());
 }
@@ -73,12 +72,19 @@ function doGet() {
   // Parse Headers from Row 1
   const headers = data[0].map(h => String(h).trim().toLowerCase());
   
-  // Create Map of keys to column indices
+  // Create Map of keys to column indices (NEW COLUMNS: bday, bmonth, byear)
   const map = {
     id: getColumnIndex(headers, 'id'),
     name: getColumnIndex(headers, 'name'),
+    
+    // TRIPLE COLUMN DATE (Robust)
+    bDay: getColumnIndex(headers, 'bday'),
+    bMonth: getColumnIndex(headers, 'bmonth'),
+    bYear: getColumnIndex(headers, 'byear'),
+    
+    // Legacy fallback (optional)
     birthday: getColumnIndex(headers, 'birthday'),
-    knownyearofbirth: getColumnIndex(headers, 'knownyearofbirth'),
+    
     phone: getColumnIndex(headers, 'phone'),
     relationship: getColumnIndex(headers, 'relationship'),
     reminderType: getColumnIndex(headers, 'remindertype'),
@@ -93,28 +99,41 @@ function doGet() {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // Skip header row
   const rows = data.slice(1);
   
   const contacts = rows.map(row => {
-    // Helper to safely get value or undefined
     const getVal = (idx) => idx !== -1 ? row[idx] : undefined;
-
-    let dateStr = getVal(map.birthday);
-    if (Object.prototype.toString.call(dateStr) === '[object Date]') {
-      dateStr = Utilities.formatDate(dateStr, Session.getScriptTimeZone(), 'yyyy-MM-dd');
+    
+    // --- DATE PARSING LOGIC ---
+    let day, month, year;
+    
+    if (map.bDay !== -1 && map.bMonth !== -1) {
+       // Prefer new split columns
+       day = parseInt(getVal(map.bDay)) || 1;
+       month = parseInt(getVal(map.bMonth)) || 1;
+       const yVal = getVal(map.bYear);
+       year = yVal ? parseInt(yVal) : undefined;
+    } else if (map.birthday !== -1) {
+       // Fallback for old column if migration not done
+       // This is risky for timezones, but better than nothing
+       let dStr = getVal(map.birthday);
+       if (Object.prototype.toString.call(dStr) === '[object Date]') {
+          day = dStr.getDate();
+          month = dStr.getMonth() + 1;
+          // We ignore year from Date objects usually in legacy mode or set default
+       }
     }
-
-    const val = getVal(map.knownyearofbirth);
-    const isYearUnknown = (String(val).toUpperCase() === 'FALSE');
 
     const lastWished = getVal(map.lastWishedYear);
 
     return {
       id: String(getVal(map.id)),
       name: getVal(map.name),
-      birthday: dateStr, 
-      yearUnknown: isYearUnknown,
+      
+      day: day || 1,
+      month: month || 1,
+      year: year,
+      
       phone: String(getVal(map.phone) || ""),
       relationship: getVal(map.relationship) || "Friend",
       reminderType: getVal(map.reminderType) || "Morning of",
@@ -138,33 +157,32 @@ function doPost(e) {
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // --- HANDLE SPECIAL ACTIONS ---
+  // --- ACTIONS ---
   if (content.action === 'testEmail') {
     checkBirthdaysAndNotify(true);
     return ContentService.createTextOutput(JSON.stringify({ status: 'success', message: 'Test email sent' }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  // --- SAVE CONTACTS (SMART SYNC) ---
+  // --- SAVE ---
   if (Array.isArray(content)) {
     const contacts = content;
-    
-    // 1. Get current headers to verify structure
     const currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(h => String(h).trim().toLowerCase());
     
-    // 2. Clear ONLY content (keep formatting/bold headers)
-    // We start from row 2, column 1, down to max rows, across to max columns
     const lastRow = sheet.getLastRow();
     if (lastRow > 1) {
         sheet.getRange(2, 1, lastRow - 1, sheet.getLastColumn()).clearContent();
     }
     
-    // 3. Map Fields
+    // Map Fields
     const map = {
       id: getColumnIndex(currentHeaders, 'id'),
       name: getColumnIndex(currentHeaders, 'name'),
-      birthday: getColumnIndex(currentHeaders, 'birthday'),
-      knownyearofbirth: getColumnIndex(currentHeaders, 'knownyearofbirth'),
+      
+      bDay: getColumnIndex(currentHeaders, 'bday'),
+      bMonth: getColumnIndex(currentHeaders, 'bmonth'),
+      bYear: getColumnIndex(currentHeaders, 'byear'),
+      
       phone: getColumnIndex(currentHeaders, 'phone'),
       relationship: getColumnIndex(currentHeaders, 'relationship'),
       reminderType: getColumnIndex(currentHeaders, 'remindertype'),
@@ -173,15 +191,17 @@ function doPost(e) {
       parentId: getColumnIndex(currentHeaders, 'parentid')
     };
 
-    // 4. Build Rows based on header positions
     const rows = contacts.map(c => {
-      // Create an array filled with empty strings matching header length
       const rowData = new Array(currentHeaders.length).fill("");
       
       if (map.id !== -1) rowData[map.id] = c.id;
       if (map.name !== -1) rowData[map.name] = c.name;
-      if (map.birthday !== -1) rowData[map.birthday] = c.birthday;
-      if (map.knownyearofbirth !== -1) rowData[map.knownyearofbirth] = c.yearUnknown ? false : true;
+      
+      // Save Split Date
+      if (map.bDay !== -1) rowData[map.bDay] = c.day;
+      if (map.bMonth !== -1) rowData[map.bMonth] = c.month;
+      if (map.bYear !== -1) rowData[map.bYear] = c.year || "";
+      
       if (map.phone !== -1) rowData[map.phone] = c.phone || "";
       if (map.relationship !== -1) rowData[map.relationship] = c.relationship;
       if (map.reminderType !== -1) rowData[map.reminderType] = c.reminderType;
@@ -210,19 +230,20 @@ function checkBirthdaysAndNotify(isTest) {
   const data = sheet.getDataRange().getValues();
   if (data.length < 2) return;
 
-  // Header Map for Automation
   const headers = data[0].map(h => String(h).trim().toLowerCase());
   const map = {
     name: getColumnIndex(headers, 'name'),
-    birthday: getColumnIndex(headers, 'birthday'),
+    bDay: getColumnIndex(headers, 'bday'),
+    bMonth: getColumnIndex(headers, 'bmonth'),
     notes: getColumnIndex(headers, 'notes')
   };
   
-  if (map.name === -1 || map.birthday === -1) return; // Can't work without these
+  // Need name and day/month at minimum
+  if (map.name === -1 || map.bDay === -1 || map.bMonth === -1) return;
 
   const rows = data.slice(1);
   const today = new Date();
-  const currentMonth = today.getMonth(); 
+  const currentMonth = today.getMonth() + 1; // 1-12
   const currentDay = today.getDate();
   const dayOfWeek = today.getDay(); // 0 = Sun
   
@@ -231,34 +252,33 @@ function checkBirthdaysAndNotify(isTest) {
   
   rows.forEach(row => {
     const name = row[map.name];
-    const bdayRaw = row[map.birthday];
+    const bDay = parseInt(row[map.bDay]);
+    const bMonth = parseInt(row[map.bMonth]);
     const notes = (map.notes !== -1) ? row[map.notes] : "";
     
-    if (!name || !bdayRaw) return;
+    if (!name || !bDay || !bMonth) return;
     
-    const bdayDate = new Date(bdayRaw);
-    const bMonth = bdayDate.getMonth();
-    const bDay = bdayDate.getDate();
-    
-    // Check Today
+    // Check Today (Direct Number Comparison - No Timezones!)
     if (bMonth === currentMonth && bDay === currentDay) {
        todaysBirthdays.push({ name: name, notes: notes });
     }
     
     // Check Weekly (Sunday or Test)
     if (dayOfWeek === 0 || isTest === true) { 
-      const nextBday = new Date(today.getFullYear(), bMonth, bDay);
-      if (nextBday < today) {
-        nextBday.setFullYear(today.getFullYear() + 1);
-      }
-      
-      const diffTime = nextBday - today;
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
-      
-      if (diffDays >= 0 && diffDays <= 7) {
-        const dateStr = Utilities.formatDate(nextBday, Session.getScriptTimeZone(), 'EEE, MMM d');
-        weekBirthdays.push({ name: name, date: dateStr, notes: notes });
-      }
+       // We still need a date object for the "next occurrence" calc
+       // but we construct it safely using the numbers
+       const nextBday = new Date(today.getFullYear(), bMonth - 1, bDay);
+       if (nextBday < today) {
+         nextBday.setFullYear(today.getFullYear() + 1);
+       }
+       
+       const diffTime = nextBday - today;
+       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+       
+       if (diffDays >= 0 && diffDays <= 7) {
+          const dateStr = Utilities.formatDate(nextBday, Session.getScriptTimeZone(), 'EEE, MMM d');
+          weekBirthdays.push({ name: name, date: dateStr, notes: notes });
+       }
     }
   });
   
@@ -313,12 +333,7 @@ function checkBirthdaysAndNotify(isTest) {
     const email = Session.getEffectiveUser().getEmail();
     if (email) {
       MailApp.sendEmail({ to: email, subject: subject, htmlBody: "<div style='font-family:sans-serif; color:#333;'>" + body + "</div>" });
-      Logger.log("Email sent.");
     }
   }
-}
-
-function manualDebugTest() {
-  checkBirthdaysAndNotify(true);
 }
 `;

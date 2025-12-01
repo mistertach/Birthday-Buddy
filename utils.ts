@@ -35,23 +35,18 @@ export const getTodayString = (): string => {
   return d.toISOString().split('T')[0];
 };
 
-export const getYearFromDate = (dateStr: string): number => {
-  return new Date(dateStr).getFullYear();
-};
-
 /**
  * Calculates the next birthday date object for sorting.
- * Handles leap years and wrapping to next year.
+ * Uses local time construction to avoid timezone shifts.
  */
-export const getNextBirthday = (birthdayStr: string): Date => {
+export const getNextBirthday = (day: number, month: number): Date => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  const birthDate = new Date(birthdayStr);
   const currentYear = today.getFullYear();
   
-  // Create date for this year
-  const nextBirthday = new Date(currentYear, birthDate.getUTCMonth(), birthDate.getUTCDate());
+  // JS Months are 0-indexed (1 = Feb), so subtract 1 from our month (1-12)
+  const nextBirthday = new Date(currentYear, month - 1, day);
   
   // If birthday has passed this year, move to next year
   if (nextBirthday < today) {
@@ -66,25 +61,23 @@ export const getNextBirthday = (birthdayStr: string): Date => {
  * - Keeps passed birthdays in the CURRENT month at the top of the list (current year).
  * - Moves passed birthdays from PREVIOUS months to next year.
  */
-export const getVisualDate = (birthdayStr: string): Date => {
+export const getVisualDate = (day: number, month: number): Date => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   
-  const birthDate = new Date(birthdayStr);
   const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth();
+  const currentMonth = today.getMonth(); // 0-11
   
-  const bMonth = birthDate.getUTCMonth();
-  const bDate = birthDate.getUTCDate();
+  const bMonthIdx = month - 1; // 0-11
   
   let targetYear = currentYear;
   
   // Construct this year's birthday
-  const thisYearBday = new Date(currentYear, bMonth, bDate);
+  const thisYearBday = new Date(currentYear, bMonthIdx, day);
   
   if (thisYearBday < today) {
     // It has passed.
-    if (bMonth === currentMonth) {
+    if (bMonthIdx === currentMonth) {
       // If it is in the CURRENT month, keep it in this year so it shows as "Missed"
       targetYear = currentYear;
     } else {
@@ -93,37 +86,36 @@ export const getVisualDate = (birthdayStr: string): Date => {
     }
   }
   
-  return new Date(targetYear, bMonth, bDate);
+  return new Date(targetYear, bMonthIdx, day);
 };
 
-export const getDaysUntil = (birthdayStr: string): number => {
+export const getDaysUntil = (day: number, month: number): number => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const next = getNextBirthday(birthdayStr);
+  const next = getNextBirthday(day, month);
   
   const diffTime = Math.abs(next.getTime() - today.getTime());
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
   return diffDays;
 };
 
-export const formatDateFriendly = (dateStr: string, yearUnknown?: boolean): string => {
-  const date = new Date(dateStr);
-  const day = date.getUTCDate();
-  const month = date.toLocaleString('default', { month: 'short', timeZone: 'UTC' });
+export const formatDateFriendly = (day: number, month: number, year?: number): string => {
+  // Create a dummy date to get the localized month name
+  // Use year 2000 as a leap year safe dummy
+  const date = new Date(2000, month - 1, day);
+  const monthName = date.toLocaleString('default', { month: 'short' });
   
-  if (yearUnknown) {
-    return `${day} ${month}`;
+  if (!year) {
+    return `${day} ${monthName}`;
   }
-  // If year is known, we show it to be helpful
-  return `${day} ${month} ${date.getUTCFullYear()}`;
+  return `${day} ${monthName} ${year}`;
 };
 
-export const getAgeTurning = (birthdayStr: string, yearUnknown?: boolean): number | null => {
-  if (yearUnknown) return null;
+export const getAgeTurning = (day: number, month: number, year?: number): number | null => {
+  if (!year) return null;
   
-  const next = getNextBirthday(birthdayStr);
-  const birthYear = new Date(birthdayStr).getUTCFullYear();
-  const age = next.getFullYear() - birthYear;
+  const next = getNextBirthday(day, month);
+  const age = next.getFullYear() - year;
   
   if (age > 120 || age < 0) return null;
   
@@ -137,7 +129,7 @@ export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'toda
   const today = new Date();
   today.setHours(0,0,0,0);
   const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth();
+  const currentMonth = today.getMonth(); // 0-11
   
   // 1. Check if explicitly wished this year
   if (contact.lastWishedYear === currentYear) {
@@ -145,17 +137,15 @@ export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'toda
   }
 
   // 2. Check date logic
-  const bday = new Date(contact.birthday);
-  // Construct this year's birthday
-  const thisYearBday = new Date(currentYear, bday.getUTCMonth(), bday.getUTCDate());
+  const bMonthIdx = contact.month - 1;
+  const thisYearBday = new Date(currentYear, bMonthIdx, contact.day);
   
   if (thisYearBday.getTime() === today.getTime()) {
     return 'today';
   }
   
   // Only mark as MISSED if it is in the CURRENT MONTH and has passed.
-  // Past months are considered "upcoming" (for next year) to avoid red clutter.
-  if (thisYearBday < today && bday.getUTCMonth() === currentMonth) {
+  if (thisYearBday < today && bMonthIdx === currentMonth) {
     return 'missed';
   }
   
@@ -166,7 +156,28 @@ export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'toda
 export const loadContacts = (): Contact[] => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY_CONTACTS);
-    return stored ? JSON.parse(stored) : [];
+    if (!stored) return [];
+    
+    const parsed = JSON.parse(stored);
+    
+    // Migration: If data still has 'birthday' string, convert it
+    return parsed.map((c: any) => {
+        if (c.birthday && !c.day) {
+            const parts = c.birthday.split('-');
+            const y = parseInt(parts[0]);
+            const m = parseInt(parts[1]);
+            const d = parseInt(parts[2]);
+            return {
+                ...c,
+                day: d,
+                month: m,
+                year: c.yearUnknown ? undefined : y,
+                birthday: undefined, // remove old field
+                yearUnknown: undefined
+            };
+        }
+        return c;
+    });
   } catch (e) {
     console.error("Failed to load contacts", e);
     return [];
@@ -236,55 +247,55 @@ export const downloadBackup = (data: any) => {
   URL.revokeObjectURL(url);
 };
 
-// Seed Data
+// Seed Data (Migrated to split fields)
 export const seedData: Contact[] = [
-  { id: '1', name: 'Vivek Korgaonkar', birthday: '2000-01-06', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '2', name: 'Esteban Rubini', birthday: '2000-01-09', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '3', name: 'Paros Lehmann', birthday: '2000-01-26', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING, notes: 'Son: Hugo' },
-  { id: '4', name: 'Nico Rubini', birthday: '2000-02-04', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '5', name: 'Maria Frugoni', birthday: '2000-02-23', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '6', name: 'Gianluca Fusco', birthday: '2000-03-08', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '7', name: 'Burcu Eke', birthday: '2000-03-11', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '8', name: 'Tomas O\'Farrell', birthday: '2000-03-13', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '9', name: 'Sara Bondia', birthday: '2000-03-17', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '10', name: 'Oriol Villante', birthday: '2000-03-23', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '11', name: 'Kerry Webb', birthday: '2000-03-24', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '12', name: 'Luca Rubini', birthday: '2000-04-05', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '13', name: 'Fabi Fusco', birthday: '2000-04-24', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '14', name: 'Leo', birthday: '2000-05-05', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING, notes: 'Tara\'s son' },
-  { id: '15', name: 'Andreu Puig', birthday: '2000-05-13', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '16', name: 'Paola Cuffalo', birthday: '2000-05-14', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '17', name: 'Roberto Viton', birthday: '2000-05-25', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '18', name: 'Martin Ferreiro', birthday: '2000-05-30', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '19', name: 'Tim Wolstenholme', birthday: '2000-05-31', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '20', name: 'Louie Marteau', birthday: '2000-06-11', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '21', name: 'Agustin Rubini', birthday: '2000-06-21', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '22', name: 'Tomas Mbarak', birthday: '2000-07-01', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '23', name: 'Albert Puig', birthday: '2000-07-04', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '24', name: 'Vicky Ager', birthday: '2000-07-04', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '25', name: 'Laura Longa', birthday: '2000-07-06', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '26', name: 'Gaston Tossetti', birthday: '2000-07-13', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '27', name: 'Andres Taradjkian', birthday: '2000-07-15', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '28', name: 'Hugo Lehmann', birthday: '2000-07-15', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '29', name: 'Kayra Rubini', birthday: '2000-07-19', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '30', name: 'Rebecca Bolton', birthday: '2000-07-23', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '31', name: 'Thibault Lafontainne', birthday: '2000-08-20', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '32', name: 'Ana Reyes', birthday: '2000-08-31', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '33', name: 'Luciana Fortunato', birthday: '2000-08-31', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '34', name: 'Renata Lopes', birthday: '2000-09-26', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '35', name: 'Leandro Mbarak', birthday: '2000-09-29', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '36', name: 'Luc Marteau', birthday: '2000-09-29', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '37', name: 'Beto Varas', birthday: '2000-10-10', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '38', name: 'Tara Wood', birthday: '2000-10-17', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '39', name: 'Wedding Anniversary', birthday: '2000-10-21', yearUnknown: true, relationship: 'Partner', reminderType: ReminderType.MORNING },
-  { id: '40', name: 'Willie Loew', birthday: '2000-11-03', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '41', name: 'Ting Europa School', birthday: '2000-11-09', yearUnknown: true, relationship: 'School', reminderType: ReminderType.MORNING },
-  { id: '42', name: 'Elena Marteau', birthday: '2000-11-12', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '43', name: 'Stella Oliveria', birthday: '2000-11-22', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '44', name: 'Noelle Lehmann', birthday: '2000-11-24', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '45', name: 'Leo Loeffer', birthday: '2000-11-22', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
-  { id: '46', name: 'Teo Rubini', birthday: '2000-11-28', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '47', name: 'Hao Europa School', birthday: '2000-12-04', yearUnknown: true, relationship: 'School', reminderType: ReminderType.MORNING },
-  { id: '48', name: 'Androulla Wolstenholme', birthday: '2000-12-15', yearUnknown: true, relationship: 'Family', reminderType: ReminderType.MORNING },
-  { id: '49', name: 'Salman London', birthday: '2000-12-22', yearUnknown: true, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '1', name: 'Vivek Korgaonkar', day: 6, month: 1, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '2', name: 'Esteban Rubini', day: 9, month: 1, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '3', name: 'Paros Lehmann', day: 26, month: 1, relationship: 'Family', reminderType: ReminderType.MORNING, notes: 'Son: Hugo' },
+  { id: '4', name: 'Nico Rubini', day: 4, month: 2, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '5', name: 'Maria Frugoni', day: 23, month: 2, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '6', name: 'Gianluca Fusco', day: 8, month: 3, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '7', name: 'Burcu Eke', day: 11, month: 3, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '8', name: 'Tomas O\'Farrell', day: 13, month: 3, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '9', name: 'Sara Bondia', day: 17, month: 3, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '10', name: 'Oriol Villante', day: 23, month: 3, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '11', name: 'Kerry Webb', day: 24, month: 3, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '12', name: 'Luca Rubini', day: 5, month: 4, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '13', name: 'Fabi Fusco', day: 24, month: 4, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '14', name: 'Leo', day: 5, month: 5, relationship: 'Friend', reminderType: ReminderType.MORNING, notes: 'Tara\'s son' },
+  { id: '15', name: 'Andreu Puig', day: 13, month: 5, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '16', name: 'Paola Cuffalo', day: 14, month: 5, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '17', name: 'Roberto Viton', day: 25, month: 5, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '18', name: 'Martin Ferreiro', day: 30, month: 5, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '19', name: 'Tim Wolstenholme', day: 31, month: 5, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '20', name: 'Louie Marteau', day: 11, month: 6, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '21', name: 'Agustin Rubini', day: 21, month: 6, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '22', name: 'Tomas Mbarak', day: 1, month: 7, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '23', name: 'Albert Puig', day: 4, month: 7, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '24', name: 'Vicky Ager', day: 4, month: 7, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '25', name: 'Laura Longa', day: 6, month: 7, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '26', name: 'Gaston Tossetti', day: 13, month: 7, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '27', name: 'Andres Taradjkian', day: 15, month: 7, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '28', name: 'Hugo Lehmann', day: 15, month: 7, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '29', name: 'Kayra Rubini', day: 19, month: 7, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '30', name: 'Rebecca Bolton', day: 23, month: 7, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '31', name: 'Thibault Lafontainne', day: 20, month: 8, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '32', name: 'Ana Reyes', day: 31, month: 8, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '33', name: 'Luciana Fortunato', day: 31, month: 8, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '34', name: 'Renata Lopes', day: 26, month: 9, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '35', name: 'Leandro Mbarak', day: 29, month: 9, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '36', name: 'Luc Marteau', day: 29, month: 9, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '37', name: 'Beto Varas', day: 10, month: 10, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '38', name: 'Tara Wood', day: 17, month: 10, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '39', name: 'Wedding Anniversary', day: 21, month: 10, relationship: 'Partner', reminderType: ReminderType.MORNING },
+  { id: '40', name: 'Willie Loew', day: 3, month: 11, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '41', name: 'Ting Europa School', day: 9, month: 11, relationship: 'School', reminderType: ReminderType.MORNING },
+  { id: '42', name: 'Elena Marteau', day: 12, month: 11, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '43', name: 'Stella Oliveria', day: 22, month: 11, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '44', name: 'Noelle Lehmann', day: 24, month: 11, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '45', name: 'Leo Loeffer', day: 22, month: 11, relationship: 'Friend', reminderType: ReminderType.MORNING },
+  { id: '46', name: 'Teo Rubini', day: 28, month: 11, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '47', name: 'Hao Europa School', day: 4, month: 12, relationship: 'School', reminderType: ReminderType.MORNING },
+  { id: '48', name: 'Androulla Wolstenholme', day: 15, month: 12, relationship: 'Family', reminderType: ReminderType.MORNING },
+  { id: '49', name: 'Salman London', day: 22, month: 12, relationship: 'Friend', reminderType: ReminderType.MORNING },
 ];

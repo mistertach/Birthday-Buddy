@@ -8,8 +8,11 @@ export enum ReminderType {
 export interface Contact {
   id: string;
   name: string;
-  birthday: string;
-  yearUnknown?: boolean;
+  // New split date fields to prevent timezone shifting
+  day: number;
+  month: number;
+  year?: number; // undefined if unknown
+  
   phone?: string;
   relationship: string;
   reminderType: ReminderType;

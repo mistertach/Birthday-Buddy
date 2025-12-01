@@ -217,14 +217,20 @@ function App() {
       lines.forEach((line) => {
         const [name, date, phone] = line.split(',');
         if (name && date) {
-          newContacts.push({
-            id: Date.now().toString() + Math.random(),
-            name: name.trim(),
-            birthday: date.trim(),
-            phone: phone?.trim(),
-            relationship: 'Other',
-            reminderType: 'Morning of' as any
-          });
+          // Attempt to parse simple YYYY-MM-DD CSVs into our new structure
+          const parts = date.trim().split('-');
+          if (parts.length === 3) {
+             newContacts.push({
+                id: Date.now().toString() + Math.random(),
+                name: name.trim(),
+                day: parseInt(parts[2]),
+                month: parseInt(parts[1]),
+                year: parseInt(parts[0]),
+                phone: phone?.trim(),
+                relationship: 'Other',
+                reminderType: 'Morning of' as any
+             });
+          }
         }
       });
       if (newContacts.length > 0) {
@@ -245,10 +251,10 @@ function App() {
       filtered = filtered.filter(c => c.relationship === filterRel);
     }
 
-    // Sort by VISUAL DATE (Missed current month first, then today, then future)
+    // Sort by VISUAL DATE using split fields
     return filtered.sort((a, b) => {
-      const dateA = getVisualDate(a.birthday);
-      const dateB = getVisualDate(b.birthday);
+      const dateA = getVisualDate(a.day, a.month);
+      const dateB = getVisualDate(b.day, b.month);
       return dateA.getTime() - dateB.getTime();
     });
   }, [contacts, searchQuery, filterRel]);
@@ -257,14 +263,13 @@ function App() {
     const groups: React.ReactNode[] = [];
     const today = new Date();
     today.setHours(0,0,0,0);
-    const currentMonthIdx = today.getMonth();
 
     let lastMonth = '';
     let currentGroupContacts: Contact[] = [];
     
     // Group contacts by visual month
     sortedContacts.forEach((contact) => {
-        const visualDate = getVisualDate(contact.birthday);
+        const visualDate = getVisualDate(contact.day, contact.month);
         const monthName = visualDate.toLocaleString('default', { month: 'long' });
         
         // Render Group if month changes
@@ -317,15 +322,12 @@ function App() {
       const today = new Date();
       today.setHours(0,0,0,0);
       
-      // Filter out: Wished birthdays that are in the past (Current month "belated" logic)
-      // If I already wished them, I don't need to see them in the "Missed/Belated" view at the top.
       const filtered = groupContacts.filter(c => {
-         const visualDate = getVisualDate(c.birthday);
+         const visualDate = getVisualDate(c.day, c.month);
          const status = getBirthdayStatus(c);
-         // If it's today or future, always show
-         if (visualDate >= today) return true;
          
-         // If it's past (missed), only show if NOT wished
+         if (visualDate >= today) return true;
+         // Hide "missed" if already wished
          if (status === 'wished') return false;
          
          return true;
@@ -439,8 +441,9 @@ function App() {
                 
                 <div className="grid grid-cols-1 gap-4 text-left">
                     {calendarMonths.map((monthIndex) => {
-                        const monthContacts = contacts.filter(c => new Date(c.birthday).getUTCMonth() === monthIndex);
-                        monthContacts.sort((a,b) => new Date(a.birthday).getUTCDate() - new Date(b.birthday).getUTCDate());
+                        // Correctly calculate Month Index (0-11)
+                        const monthContacts = contacts.filter(c => (c.month - 1) === monthIndex);
+                        monthContacts.sort((a,b) => a.day - b.day);
 
                         if (monthContacts.length === 0) return null;
                         
@@ -464,7 +467,7 @@ function App() {
                                             className="bg-slate-50 hover:bg-slate-100 active:scale-95 transition-all text-xs px-2.5 py-1.5 rounded-lg border border-slate-100 flex items-center gap-2 group"
                                         >
                                             <span className={`w-2 h-2 rounded-full ${dotColor}`}></span>
-                                            <span className="font-semibold text-slate-400 group-hover:text-slate-600 w-4 text-right">{new Date(c.birthday).getUTCDate()}</span>
+                                            <span className="font-semibold text-slate-400 group-hover:text-slate-600 w-4 text-right">{c.day}</span>
                                             <span className="font-medium text-slate-700">{c.name}</span>
                                         </button>
                                       );

@@ -21,8 +21,8 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
   const [showActions, setShowActions] = useState(false);
   const [showAI, setShowAI] = useState(false);
 
-  const daysUntil = getDaysUntil(contact.birthday);
-  const turningAge = getAgeTurning(contact.birthday, contact.yearUnknown);
+  const daysUntil = getDaysUntil(contact.day, contact.month);
+  const turningAge = getAgeTurning(contact.day, contact.month, contact.year);
   const status = getBirthdayStatus(contact);
   
   const isToday = status === 'today';
@@ -31,9 +31,9 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
   
   const categoryColor = getCategoryColor(contact.relationship);
 
-  const dateObj = new Date(contact.birthday);
-  const dayStr = dateObj.getUTCDate();
-  const monthStr = dateObj.toLocaleString('default', { month: 'short', timeZone: 'UTC' });
+  // Month Display
+  const date = new Date(2000, contact.month - 1, contact.day);
+  const monthStr = date.toLocaleString('default', { month: 'short' });
 
   const phoneToUse = parentContact ? parentContact.phone : contact.phone;
 
@@ -49,7 +49,6 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
   };
 
   const toggleWished = () => {
-    // If currently wished, toggle to false. Else true.
     onWish(contact.id, !isWished);
   };
 
@@ -80,7 +79,7 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
 
         {/* Date Box */}
         <div className={`flex flex-col items-center justify-center w-12 h-12 rounded-lg border ${categoryColor} bg-opacity-10 shrink-0`}>
-           <span className="text-sm font-bold leading-none">{dayStr}</span>
+           <span className="text-sm font-bold leading-none">{contact.day}</span>
            <span className="text-[10px] uppercase font-medium leading-none mt-0.5">{monthStr}</span>
         </div>
 
@@ -109,7 +108,7 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
               {!isToday && !isMissed && daysUntil <= 7 && <span className="text-amber-600 font-medium">{daysUntil} days left</span>}
               {!isToday && !isMissed && daysUntil > 7 && <span>In {daysUntil} days</span>}
 
-              {!contact.yearUnknown && turningAge !== null && (
+              {contact.year && turningAge !== null && (
                  <>
                   <span>•</span>
                   <span>Turns {turningAge}</span>

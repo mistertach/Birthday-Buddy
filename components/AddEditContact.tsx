@@ -19,22 +19,10 @@ export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, 
   const [name, setName] = useState(initialData?.name || '');
   
   // Date State Parsing
-  const [day, setDay] = useState('');
-  const [month, setMonth] = useState('');
-  const [year, setYear] = useState('');
-  const [yearUnknown, setYearUnknown] = useState(initialData?.yearUnknown || false);
-
-  useEffect(() => {
-    if (initialData?.birthday) {
-        const parts = initialData.birthday.split('-');
-        if (parts.length === 3) {
-            setYear(initialData.yearUnknown ? '' : parts[0]);
-            // Fix: ParseInt removes leading zeros ("05" -> "5") to match select option values
-            setMonth(parseInt(parts[1], 10).toString()); 
-            setDay(parseInt(parts[2], 10).toString());
-        }
-    }
-  }, [initialData]);
+  const [day, setDay] = useState(initialData?.day?.toString() || '');
+  const [month, setMonth] = useState(initialData?.month?.toString() || '');
+  const [year, setYear] = useState(initialData?.year?.toString() || '');
+  const [yearUnknown, setYearUnknown] = useState(!initialData?.year);
 
   const [phone, setPhone] = useState(initialData?.phone || '');
   const [relationship, setRelationship] = useState<string>(initialData?.relationship || categories[0] || 'Friend');
@@ -46,19 +34,12 @@ export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, 
     e.preventDefault();
     if (!name || !day || !month) return;
 
-    // Construct YYYY-MM-DD
-    // If year unknown, default to 2000 (Leap year safe)
-    const y = yearUnknown || !year ? '2000' : year;
-    const m = month.padStart(2, '0');
-    const d = day.padStart(2, '0');
-    
-    const finalDate = `${y}-${m}-${d}`;
-
     const contact: Contact = {
       id: initialData?.id || Date.now().toString(),
       name,
-      birthday: finalDate,
-      yearUnknown,
+      day: parseInt(day),
+      month: parseInt(month),
+      year: yearUnknown ? undefined : parseInt(year),
       phone,
       relationship,
       reminderType: reminder,
