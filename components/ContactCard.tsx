@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Contact, GreetingTemplate } from '../types';
 import { getDaysUntil, getAgeTurning, getCategoryColor, getBirthdayStatus } from '../utils';
@@ -69,14 +68,14 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
         {/* Toggle Button (Tick) */}
         <button 
            onClick={toggleWished}
-           className={`shrink-0 w-8 h-8 rounded-full flex items-center justify-center transition-all border shadow-sm ${
+           className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all border ${
               isWished 
                 ? 'bg-green-500 border-green-500 text-white' 
-                : 'bg-white border-slate-300 text-slate-300 hover:border-green-400 hover:text-green-400'
+                : 'bg-white border-slate-300 text-transparent hover:border-green-400 hover:text-green-200'
            }`}
            title={isWished ? "Mark as Pending" : "Mark as Wished"}
         >
-            <Check size={18} strokeWidth={3} />
+            <Check size={16} strokeWidth={3} />
         </button>
 
         {/* Date Box */}
@@ -110,8 +109,6 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
               {!isToday && !isMissed && daysUntil <= 7 && <span className="text-amber-600 font-medium">{daysUntil} days left</span>}
               {!isToday && !isMissed && daysUntil > 7 && <span>In {daysUntil} days</span>}
 
-              {/* If missed, we don't show "In 365 days". We just show Missed. */}
-              
               {!contact.yearUnknown && turningAge !== null && (
                  <>
                   <span>•</span>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Contact, ReminderType } from '../types';
 import { X, Calendar, User, Phone, Tag, Bell, StickyNote, Baby } from 'lucide-react';
 
@@ -10,14 +10,32 @@ interface Props {
   contacts: Contact[];
 }
 
+const MONTHS = [
+  'January', 'February', 'March', 'April', 'May', 'June', 
+  'July', 'August', 'September', 'October', 'November', 'December'
+];
+
 export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, categories, contacts }) => {
   const [name, setName] = useState(initialData?.name || '');
   
-  // Clean date string to ensure it fits HTML date input (YYYY-MM-DD), removing any time parts
-  const initialDate = initialData?.birthday ? initialData.birthday.split('T')[0] : '';
-  const [date, setDate] = useState(initialDate);
-  
+  // Date State Parsing
+  const [day, setDay] = useState('');
+  const [month, setMonth] = useState('');
+  const [year, setYear] = useState('');
   const [yearUnknown, setYearUnknown] = useState(initialData?.yearUnknown || false);
+
+  useEffect(() => {
+    if (initialData?.birthday) {
+        const parts = initialData.birthday.split('-');
+        if (parts.length === 3) {
+            setYear(initialData.yearUnknown ? '' : parts[0]);
+            // Fix: ParseInt removes leading zeros ("05" -> "5") to match select option values
+            setMonth(parseInt(parts[1], 10).toString()); 
+            setDay(parseInt(parts[2], 10).toString());
+        }
+    }
+  }, [initialData]);
+
   const [phone, setPhone] = useState(initialData?.phone || '');
   const [relationship, setRelationship] = useState<string>(initialData?.relationship || categories[0] || 'Friend');
   const [reminder, setReminder] = useState<ReminderType>(initialData?.reminderType || ReminderType.MORNING);
@@ -26,17 +44,15 @@ export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, 
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name || !date) return;
+    if (!name || !day || !month) return;
 
-    // If year is unknown, we ensure the date is stored with a leap-year safe year (e.g., 2000)
-    let finalDate = date;
-    if (yearUnknown) {
-        const parts = date.split('-');
-        if (parts.length === 3) {
-            // Keep month and day, set year to 2000
-            finalDate = `2000-${parts[1]}-${parts[2]}`;
-        }
-    }
+    // Construct YYYY-MM-DD
+    // If year unknown, default to 2000 (Leap year safe)
+    const y = yearUnknown || !year ? '2000' : year;
+    const m = month.padStart(2, '0');
+    const d = day.padStart(2, '0');
+    
+    const finalDate = `${y}-${m}-${d}`;
 
     const contact: Contact = {
       id: initialData?.id || Date.now().toString(),
@@ -89,23 +105,65 @@ export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, 
               <label className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1">
                 <Calendar size={12} /> Date of Birth
               </label>
-              <div className="flex gap-3">
-                  <input
-                    required
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                    className="flex-1 p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none"
-                  />
-                  <label className="flex items-center gap-2 p-3 border border-slate-200 rounded-xl bg-white cursor-pointer hover:bg-slate-50 transition-colors">
+              
+              <div className="grid grid-cols-4 gap-2">
+                 {/* Day */}
+                 <div className="col-span-1">
+                    <input
+                        required
+                        type="number"
+                        min="1"
+                        max="31"
+                        placeholder="Day"
+                        value={day}
+                        onChange={(e) => setDay(e.target.value)}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-center"
+                    />
+                 </div>
+
+                 {/* Month */}
+                 <div className="col-span-2">
+                    <select
+                        required
+                        value={month}
+                        onChange={(e) => setMonth(e.target.value)}
+                        className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none appearance-none"
+                    >
+                        <option value="" disabled>Month</option>
+                        {MONTHS.map((m, idx) => (
+                            <option key={m} value={(idx + 1).toString()}>{m}</option>
+                        ))}
+                    </select>
+                 </div>
+
+                 {/* Year */}
+                 <div className="col-span-1">
+                    <input
+                        type="number"
+                        min="1900"
+                        max={new Date().getFullYear()}
+                        placeholder="Year"
+                        value={year}
+                        disabled={yearUnknown}
+                        onChange={(e) => setYear(e.target.value)}
+                        className={`w-full p-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-center transition-colors ${yearUnknown ? 'bg-slate-100 text-slate-400' : 'bg-slate-50'}`}
+                    />
+                 </div>
+              </div>
+
+              <div className="mt-2">
+                <label className="inline-flex items-center gap-2 cursor-pointer p-2 rounded-lg hover:bg-slate-50 transition-colors">
                     <input 
                         type="checkbox" 
                         checked={yearUnknown}
-                        onChange={(e) => setYearUnknown(e.target.checked)}
+                        onChange={(e) => {
+                            setYearUnknown(e.target.checked);
+                            if (e.target.checked) setYear('');
+                        }}
                         className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500 border-gray-300"
                     />
-                    <span className="text-sm text-slate-600 font-medium whitespace-nowrap">Year Unknown</span>
-                  </label>
+                    <span className="text-sm text-slate-600 font-medium">I don't know the year</span>
+                </label>
               </div>
           </div>
 

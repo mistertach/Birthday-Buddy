@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Contact, StreakData } from './types';
 import { loadContacts, saveContacts, loadStreak, updateStreak, getDaysUntil, seedData, downloadBackup, loadCategories, saveCategories, getCategoryDotColor, getNextBirthday, getBirthdayStatus, getVisualDate } from './utils';
@@ -15,7 +14,9 @@ import {
   Flame, 
   Settings,
   Loader2,
-  RefreshCw
+  RefreshCw,
+  ChevronDown,
+  ChevronRight
 } from 'lucide-react';
 
 const DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycbzBVERY0cI0KL-oc9jC3JsNOQz-0CeqjBj5xoAoDbnUYH0FbVdzPowv6Xt1o7fpguPf/exec";
@@ -33,6 +34,12 @@ function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [filterRel, setFilterRel] = useState<string>('All');
   
+  // Accordion State for Months
+  const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>(() => {
+    const m = new Date().toLocaleString('default', { month: 'long' });
+    return { [m]: true };
+  });
+
   // Cloud Sync State
   const [sheetUrl, setSheetUrl] = useState(() => {
     const stored = localStorage.getItem('confetti_sheet_url');
@@ -80,6 +87,10 @@ function App() {
   const handleUpdateCategories = (newCats: string[]) => {
     setCategories(newCats);
     saveCategories(newCats);
+  };
+
+  const toggleMonth = (month: string) => {
+    setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
   };
 
   const handlePullFromCloud = async (url: string = sheetUrl, showAlert = true) => {
@@ -144,13 +155,10 @@ function App() {
     const updated = contacts.map(c => {
         if (c.id === id) {
             const currentYear = new Date().getFullYear();
-            // If forceState is true: Mark wished (year = current)
-            // If forceState is false: Unmark (year = undefined)
-            // If undefined: Default to Mark wished
             const shouldMark = forceState !== undefined ? forceState : true;
             
             if (shouldMark) {
-               updateStreak(); // Only increment streak on positive wish
+               updateStreak(); 
                return { ...c, lastWishedYear: currentYear };
             } else {
                return { ...c, lastWishedYear: undefined };
@@ -158,7 +166,7 @@ function App() {
         }
         return c;
     });
-    setStreak(loadStreak()); // Refresh streak UI
+    setStreak(loadStreak()); 
     updateContacts(updated);
   };
 
@@ -237,7 +245,7 @@ function App() {
       filtered = filtered.filter(c => c.relationship === filterRel);
     }
 
-    // Sort using visual date (keeps current month passed dates at the top)
+    // Sort by VISUAL DATE (Missed current month first, then today, then future)
     return filtered.sort((a, b) => {
       const dateA = getVisualDate(a.birthday);
       const dateB = getVisualDate(b.birthday);
@@ -247,34 +255,51 @@ function App() {
 
   const renderListWithSeparators = () => {
     const groups: React.ReactNode[] = [];
-    let lastMonth = '';
+    const today = new Date();
+    today.setHours(0,0,0,0);
+    const currentMonthIdx = today.getMonth();
 
+    let lastMonth = '';
+    let currentGroupContacts: Contact[] = [];
+    
+    // Group contacts by visual month
     sortedContacts.forEach((contact) => {
-        // Use visual date for headers too, so they match the sorting
         const visualDate = getVisualDate(contact.birthday);
         const monthName = visualDate.toLocaleString('default', { month: 'long' });
         
+        // Render Group if month changes
         if (monthName !== lastMonth) {
+            if (currentGroupContacts.length > 0) {
+                // Render previous group content
+                if (expandedMonths[lastMonth]) {
+                    groups.push(renderContactGroup(currentGroupContacts));
+                }
+            }
+            
+            // Render Header
+            const isExpanded = expandedMonths[monthName];
             groups.push(
-                <div key={`header-${monthName}`} className="sticky top-[138px] z-10 py-2 bg-slate-50/95 backdrop-blur-sm">
-                    <h3 className="text-sm font-bold text-slate-400 uppercase tracking-widest pl-1">{monthName}</h3>
-                </div>
+                <button 
+                    key={`header-${monthName}`} 
+                    onClick={() => toggleMonth(monthName)}
+                    className="sticky top-[138px] z-10 w-full flex items-center justify-between py-2.5 px-1 bg-slate-50/95 backdrop-blur-sm border-b border-slate-100 hover:bg-slate-100 transition-colors"
+                >
+                    <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{monthName}</h3>
+                    {isExpanded ? <ChevronDown size={16} className="text-slate-400"/> : <ChevronRight size={16} className="text-slate-400"/>}
+                </button>
             );
+            
             lastMonth = monthName;
+            currentGroupContacts = [];
         }
-
-        const parent = contact.parentId ? contacts.find(c => c.id === contact.parentId) : undefined;
-
-        groups.push(
-            <ContactCard 
-                key={contact.id} 
-                contact={contact} 
-                parentContact={parent}
-                onWish={handleWish} 
-                onEdit={(c) => { setEditingContact(c); setIsModalOpen(true); }} 
-            />
-        );
+        
+        currentGroupContacts.push(contact);
     });
+    
+    // Render last group
+    if (currentGroupContacts.length > 0 && expandedMonths[lastMonth]) {
+        groups.push(renderContactGroup(currentGroupContacts));
+    }
 
     if (groups.length === 0) {
         return (
@@ -285,7 +310,47 @@ function App() {
         );
     }
 
-    return <div className="space-y-2 pb-20">{groups}</div>;
+    return <div className="space-y-0 pb-20">{groups}</div>;
+  };
+
+  const renderContactGroup = (groupContacts: Contact[]) => {
+      const today = new Date();
+      today.setHours(0,0,0,0);
+      
+      // Filter out: Wished birthdays that are in the past (Current month "belated" logic)
+      // If I already wished them, I don't need to see them in the "Missed/Belated" view at the top.
+      const filtered = groupContacts.filter(c => {
+         const visualDate = getVisualDate(c.birthday);
+         const status = getBirthdayStatus(c);
+         // If it's today or future, always show
+         if (visualDate >= today) return true;
+         
+         // If it's past (missed), only show if NOT wished
+         if (status === 'wished') return false;
+         
+         return true;
+      });
+
+      if (filtered.length === 0) {
+          return <div className="py-4 text-center text-xs text-slate-300 italic mb-2">No pending birthdays.</div>;
+      }
+
+      return (
+        <div className="space-y-2 mb-4 mt-2 animate-fade-in">
+            {filtered.map(contact => {
+                 const parent = contact.parentId ? contacts.find(c => c.id === contact.parentId) : undefined;
+                 return (
+                    <ContactCard 
+                        key={contact.id} 
+                        contact={contact} 
+                        parentContact={parent}
+                        onWish={handleWish} 
+                        onEdit={(c) => { setEditingContact(c); setIsModalOpen(true); }} 
+                    />
+                 );
+            })}
+        </div>
+      );
   };
 
   const calendarMonths = useMemo(() => {

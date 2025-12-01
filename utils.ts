@@ -1,4 +1,3 @@
-
 import { Contact, StreakData, ReminderType } from './types';
 
 // Storage Keys
@@ -63,36 +62,38 @@ export const getNextBirthday = (birthdayStr: string): Date => {
 };
 
 /**
- * Returns a date object used for VISUAL sorting in the list.
- * CRITICAL CHANGE: If a birthday is in the CURRENT MONTH but has passed,
- * we still want it to appear in the "Current Month" group (Year = CurrentYear),
- * NOT jumped to next year.
- * 
- * Birthdays in previous months are pushed to next year.
+ * Calculates a visual date for list sorting.
+ * - Keeps passed birthdays in the CURRENT month at the top of the list (current year).
+ * - Moves passed birthdays from PREVIOUS months to next year.
  */
 export const getVisualDate = (birthdayStr: string): Date => {
-    const today = new Date();
-    // Reset time to avoid timezone offset issues during simple comparison
-    today.setHours(0,0,0,0); 
-    
-    const currentMonth = today.getMonth();
-    const currentYear = today.getFullYear();
-
-    const bday = new Date(birthdayStr);
-    const bMonth = bday.getUTCMonth();
-    const bDay = bday.getUTCDate();
-
-    let targetYear = currentYear;
-
-    // If the birthday month is earlier than this month (e.g. Jan vs Nov),
-    // it belongs to next year's cycle.
-    if (bMonth < currentMonth) {
-        targetYear = currentYear + 1;
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  
+  const birthDate = new Date(birthdayStr);
+  const currentYear = today.getFullYear();
+  const currentMonth = today.getMonth();
+  
+  const bMonth = birthDate.getUTCMonth();
+  const bDate = birthDate.getUTCDate();
+  
+  let targetYear = currentYear;
+  
+  // Construct this year's birthday
+  const thisYearBday = new Date(currentYear, bMonth, bDate);
+  
+  if (thisYearBday < today) {
+    // It has passed.
+    if (bMonth === currentMonth) {
+      // If it is in the CURRENT month, keep it in this year so it shows as "Missed"
+      targetYear = currentYear;
+    } else {
+      // If it was a previous month (Jan, Feb...), move to next year
+      targetYear = currentYear + 1;
     }
-    // If bMonth >= currentMonth, keep it in currentYear so it stays visible 
-    // in the list, even if the day has passed.
-
-    return new Date(targetYear, bMonth, bDay);
+  }
+  
+  return new Date(targetYear, bMonth, bDate);
 };
 
 export const getDaysUntil = (birthdayStr: string): number => {
@@ -131,10 +132,6 @@ export const getAgeTurning = (birthdayStr: string, yearUnknown?: boolean): numbe
 
 /**
  * Determines the status of the birthday relative to the current calendar year.
- * Refined logic:
- * - Today: Exact match.
- * - Missed: Only if it was earlier THIS MONTH and not wished.
- * - Upcoming: Everything else (later this month, or next months/year).
  */
 export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'today' | 'upcoming' => {
   const today = new Date();
@@ -147,19 +144,18 @@ export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'toda
     return 'wished';
   }
 
-  // 2. Date Logic
+  // 2. Check date logic
   const bday = new Date(contact.birthday);
-  const bMonth = bday.getUTCMonth();
-  const bDay = bday.getUTCDate();
+  // Construct this year's birthday
+  const thisYearBday = new Date(currentYear, bday.getUTCMonth(), bday.getUTCDate());
   
-  // Check Today
-  if (bMonth === currentMonth && bDay === today.getDate()) {
+  if (thisYearBday.getTime() === today.getTime()) {
     return 'today';
   }
   
-  // Check Missed: STRICTLY restricted to CURRENT MONTH passed dates.
-  // We do not mark Jan/Feb as missed if we are in Nov. They are just 'upcoming' next year.
-  if (bMonth === currentMonth && bDay < today.getDate()) {
+  // Only mark as MISSED if it is in the CURRENT MONTH and has passed.
+  // Past months are considered "upcoming" (for next year) to avoid red clutter.
+  if (thisYearBday < today && bday.getUTCMonth() === currentMonth) {
     return 'missed';
   }
   
