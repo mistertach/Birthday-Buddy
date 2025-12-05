@@ -19,7 +19,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 
-const DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycbzBVERY0cI0KL-oc9jC3JsNOQz-0CeqjBj5xoAoDbnUYH0FbVdzPowv6Xt1o7fpguPf/exec";
+const DEFAULT_SHEET_URL = "https://script.google.com/macros/s/AKfycbxumXXyXV_WG-C4ynF6DtSS3n2OhXZCMz15-ORRLrbRkSQf3PUbeo4iHjD6UydNDxYr/exec";
 
 function App() {
   // State

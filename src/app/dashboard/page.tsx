@@ -1,0 +1,51 @@
+import { auth } from '@/auth';
+import { redirect } from 'next/navigation';
+import { getContacts } from '@/lib/contact-actions';
+import DashboardClient from '@/components/dashboard-client';
+import { prisma } from '@/lib/prisma';
+import { saveResendSettings, sendResendTestEmail } from '@/lib/email-actions';
+import { ReminderType, type Contact } from '@/lib/types';
+
+export default async function DashboardPage() {
+    const session = await auth();
+
+    if (!session?.user) {
+        redirect('/login');
+    }
+
+    const contacts = await getContacts();
+
+    const normalizedContacts: Contact[] = contacts.map((contact: any) => ({
+        id: contact.id,
+        name: contact.name,
+        day: contact.day,
+        month: contact.month,
+        year: contact.year ?? undefined,
+        phone: contact.phone ?? undefined,
+        relationship: contact.relationship ?? 'Friend',
+        reminderType: (contact.reminderType ?? ReminderType.MORNING) as ReminderType,
+        notes: contact.notes ?? undefined,
+        lastWishedYear: contact.lastWishedYear ?? undefined,
+        parentId: contact.parentId ?? undefined,
+    }));
+
+    const rawUser = session.user?.email
+        ? await prisma.user.findUnique({
+              where: { email: session.user.email },
+          })
+        : null;
+
+    const resendApiKey = (rawUser as { resendApiKey?: string | null } | null)?.resendApiKey ?? undefined;
+    const resendFromEmail = (rawUser as { resendFromEmail?: string | null } | null)?.resendFromEmail ?? undefined;
+
+    return (
+        <DashboardClient
+            initialContacts={normalizedContacts}
+            userName={session.user.name}
+            resendApiKey={resendApiKey}
+            resendFromEmail={resendFromEmail}
+            onSaveResendConfig={saveResendSettings}
+            onSendTestEmail={sendResendTestEmail}
+        />
+    );
+}
