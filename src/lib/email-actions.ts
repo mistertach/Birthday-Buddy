@@ -354,3 +354,191 @@ export async function sendDayOfBirthdayReminders() {
 
   return { ok: true, results };
 }
+
+/**
+ * Send a test daily birthday reminder email to the current user
+ */
+export async function sendTestDailyEmail() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return { ok: false, message: 'Unauthorized' };
+  }
+
+  const settings = await getSharedSettingsRecord();
+  if (!settings?.resendApiKey) {
+    return { ok: false, message: 'Resend API key is not configured yet.' };
+  }
+
+  if (!settings.resendFromEmail) {
+    return { ok: false, message: 'From email address is missing. Please set it before testing.' };
+  }
+
+  // Get current user
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, name: true }
+  });
+
+  if (!user) {
+    return { ok: false, message: 'User not found' };
+  }
+
+  // Fetch user's real contacts
+  const contacts = await fetchContactsForUser(user.id);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Filter for today's birthdays
+  const todaysBirthdays = contacts.filter((contact) => {
+    const reminderPref = normalizeReminderType(contact.reminderType);
+    if (reminderPref === ReminderType.NONE) return false;
+    if (reminderPref === ReminderType.WEEK_BEFORE) return false;
+    return isBirthdayToday(contact.day, contact.month, today);
+  });
+
+  // Use real data if available, otherwise use sample data
+  const contactsToShow = todaysBirthdays.length > 0 ? todaysBirthdays : [
+    {
+      id: 'sample-1',
+      name: 'John Doe',
+      day: today.getDate(),
+      month: today.getMonth() + 1,
+      year: 1990,
+      relationship: 'Friend',
+      reminderType: 'MORNING',
+      userId: 'test'
+    },
+    {
+      id: 'sample-2',
+      name: 'Jane Smith',
+      day: today.getDate(),
+      month: today.getMonth() + 1,
+      year: null,
+      relationship: 'Family',
+      reminderType: 'MORNING',
+      userId: 'test'
+    }
+  ];
+
+  const subjectPrefix = todaysBirthdays.length > 0 ? '[TEST - Real Data]' : '[TEST - Sample Data]';
+
+  try {
+    const resend = new Resend(settings.resendApiKey);
+    await resend.emails.send({
+      from: `Birthday Buddy <${settings.resendFromEmail}>`,
+      to: session.user.email,
+      subject: `🎂 ${subjectPrefix} Birthdays to celebrate today`,
+      html: formatDailyEmailHTML(session.user.name, contactsToShow),
+    });
+
+    const dataType = todaysBirthdays.length > 0
+      ? `Test daily email sent with ${todaysBirthdays.length} real birthday(s)!`
+      : 'Test daily email sent with sample data (no real birthdays today).';
+
+    return { ok: true, message: `${dataType} Check your inbox to see how it looks.` };
+  } catch (error: any) {
+    console.error('Failed to send test daily email:', error);
+    const message = error?.message ?? 'Failed to send test email.';
+    return { ok: false, message };
+  }
+}
+
+/**
+ * Send a test weekly birthday reminder email to the current user
+ */
+export async function sendTestWeeklyEmail() {
+  const session = await auth();
+  if (!session?.user?.email) {
+    return { ok: false, message: 'Unauthorized' };
+  }
+
+  const settings = await getSharedSettingsRecord();
+  if (!settings?.resendApiKey) {
+    return { ok: false, message: 'Resend API key is not configured yet.' };
+  }
+
+  if (!settings.resendFromEmail) {
+    return { ok: false, message: 'From email address is missing. Please set it before testing.' };
+  }
+
+  // Get current user
+  const user = await prisma.user.findUnique({
+    where: { email: session.user.email },
+    select: { id: true, name: true }
+  });
+
+  if (!user) {
+    return { ok: false, message: 'User not found' };
+  }
+
+  // Fetch user's real contacts
+  const contacts = await fetchContactsForUser(user.id);
+
+  // Filter for upcoming birthdays in next 7 days
+  const upcoming = contacts.filter((contact) => {
+    const reminderPref = normalizeReminderType(contact.reminderType);
+    if (reminderPref === ReminderType.NONE) return false;
+
+    const daysUntil = getDaysUntilDate(contact.day, contact.month);
+    if (daysUntil > 7 || daysUntil < 0) return false;
+
+    return reminderPref === ReminderType.WEEK_BEFORE || reminderPref === ReminderType.MORNING || reminderPref === ReminderType.DAY_BEFORE;
+  });
+
+  // Use real data if available, otherwise use sample data
+  const today = new Date();
+  const contactsToShow = upcoming.length > 0 ? upcoming : [
+    {
+      id: 'sample-1',
+      name: 'Alice Johnson',
+      day: today.getDate(),
+      month: today.getMonth() + 1,
+      year: 1985,
+      relationship: 'Friend',
+      reminderType: 'MORNING',
+      userId: 'test'
+    },
+    {
+      id: 'sample-2',
+      name: 'Bob Williams',
+      day: today.getDate() + 2,
+      month: today.getMonth() + 1,
+      year: 1992,
+      relationship: 'Work',
+      reminderType: 'WEEK_BEFORE',
+      userId: 'test'
+    },
+    {
+      id: 'sample-3',
+      name: 'Carol Martinez',
+      day: today.getDate() + 5,
+      month: today.getMonth() + 1,
+      year: null,
+      relationship: 'Family',
+      reminderType: 'WEEK_BEFORE',
+      userId: 'test'
+    }
+  ];
+
+  const subjectPrefix = upcoming.length > 0 ? '[TEST - Real Data]' : '[TEST - Sample Data]';
+
+  try {
+    const resend = new Resend(settings.resendApiKey);
+    await resend.emails.send({
+      from: `Birthday Buddy <${settings.resendFromEmail}>`,
+      to: session.user.email,
+      subject: `🎉 ${subjectPrefix} Your Birthday Buddy week ahead`,
+      html: formatWeeklyEmailHTML(session.user.name, contactsToShow),
+    });
+
+    const dataType = upcoming.length > 0
+      ? `Test weekly email sent with ${upcoming.length} real upcoming birthday(s)!`
+      : 'Test weekly email sent with sample data (no real birthdays in next 7 days).';
+
+    return { ok: true, message: `${dataType} Check your inbox to see how it looks.` };
+  } catch (error: any) {
+    console.error('Failed to send test weekly email:', error);
+    const message = error?.message ?? 'Failed to send test email.';
+    return { ok: false, message };
+  }
+}

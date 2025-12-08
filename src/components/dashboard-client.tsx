@@ -15,7 +15,8 @@ import {
     ChevronDown,
     ChevronRight,
     LogOut,
-    Settings
+    Settings,
+    Shield
 } from 'lucide-react';
 import { createContact, createContacts, updateContact, deleteContact, markAsWished } from '@/lib/contact-actions';
 import { handleSignOut } from '@/lib/actions';
@@ -23,10 +24,7 @@ import { handleSignOut } from '@/lib/actions';
 interface DashboardClientProps {
     initialContacts: Contact[];
     userName?: string | null;
-    resendApiKey?: string;
-    resendFromEmail?: string;
-    onSaveResendConfig: (config: { apiKey: string; fromEmail: string }) => Promise<{ ok: boolean; message?: string }>;
-    onSendTestEmail: () => Promise<{ ok: boolean; message?: string }>;
+    isAdmin?: boolean;
 }
 
 const normalizeContact = (contact: any): Contact => ({
@@ -43,10 +41,7 @@ const normalizeContact = (contact: any): Contact => ({
 export default function DashboardClient({
     initialContacts,
     userName,
-    resendApiKey,
-    resendFromEmail,
-    onSaveResendConfig,
-    onSendTestEmail,
+    isAdmin,
 }: DashboardClientProps) {
     const [contacts, setContacts] = useState<Contact[]>(() => initialContacts.map(normalizeContact));
     const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -61,17 +56,7 @@ export default function DashboardClient({
     const [searchQuery, setSearchQuery] = useState('');
     const [filterRel, setFilterRel] = useState<string>('All');
 
-    const [resendConfig, setResendConfig] = useState<{ apiKey: string; fromEmail: string }>(() => ({
-        apiKey: resendApiKey ?? '',
-        fromEmail: resendFromEmail ?? '',
-    }));
 
-    useEffect(() => {
-        setResendConfig({
-            apiKey: resendApiKey ?? '',
-            fromEmail: resendFromEmail ?? '',
-        });
-    }, [resendApiKey, resendFromEmail]);
 
     const [expandedMonths, setExpandedMonths] = useState<Record<string, boolean>>(() => {
         const m = new Date().toLocaleString('default', { month: 'long' });
@@ -321,17 +306,6 @@ export default function DashboardClient({
         return months;
     }, []);
 
-    const handleSaveResendSettings = async (config: { apiKey: string; fromEmail: string }) => {
-        const result = await onSaveResendConfig(config);
-        if (result?.ok) {
-            setResendConfig({
-                apiKey: config.apiKey,
-                fromEmail: config.fromEmail,
-            });
-        }
-        return result;
-    };
-
     return (
         <div className="min-h-screen bg-slate-50 pb-20 max-w-xl mx-auto shadow-2xl shadow-slate-200 border-x border-slate-100 relative">
             <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
@@ -344,6 +318,15 @@ export default function DashboardClient({
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {isAdmin && (
+                        <a
+                            href="/admin"
+                            className="p-2 rounded-full text-purple-600 hover:bg-purple-50 transition-colors"
+                            title="Admin Panel"
+                        >
+                            <Shield size={20} />
+                        </a>
+                    )}
                     <button
                         onClick={() => setIsSettingsOpen(true)}
                         className="p-2 rounded-full text-slate-400 hover:bg-slate-100 transition-colors"
@@ -483,22 +466,39 @@ export default function DashboardClient({
                 <SettingsModal
                     onClose={() => setIsSettingsOpen(false)}
                     onExport={() => {
-                        const data = JSON.stringify({ contacts, categories }, null, 2);
-                        const blob = new Blob([data], { type: 'application/json' });
+                        // Convert contacts to CSV
+                        const headers = ['name', 'day', 'month', 'year', 'relationship', 'phone', 'reminderType', 'notes'];
+                        const rows = contacts.map(c => [
+                            c.name,
+                            c.day.toString(),
+                            c.month.toString(),
+                            c.year?.toString() || '',
+                            c.relationship || '',
+                            c.phone || '',
+                            c.reminderType || 'MORNING',
+                            c.notes || ''
+                        ]);
+
+                        const csvContent = [
+                            headers.join(','),
+                            ...rows.map(row => row.map(cell => {
+                                // Escape cells that contain commas or quotes
+                                if (cell.includes(',') || cell.includes('"') || cell.includes('\n')) {
+                                    return `"${cell.replace(/"/g, '""')}"`;
+                                }
+                                return cell;
+                            }).join(','))
+                        ].join('\n');
+
+                        const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
                         const url = URL.createObjectURL(blob);
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = 'birthday-buddy-backup.json';
+                        a.download = 'birthday-buddy-contacts.csv';
                         a.click();
+                        URL.revokeObjectURL(url);
                     }}
-                    onImportJSON={handleImportJSON}
                     onImportCSV={handleImportCSV}
-                    resendApiKey={resendConfig.apiKey}
-                    resendFromEmail={resendConfig.fromEmail}
-                    onSaveResendConfig={handleSaveResendSettings}
-                    onSendTestEmail={onSendTestEmail}
-                    categories={categories}
-                    onUpdateCategories={() => { }} // Categories are derived from contacts now
                 />
             )}
 

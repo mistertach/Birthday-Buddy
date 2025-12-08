@@ -49,6 +49,10 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
   };
 
   const toggleWished = () => {
+    // Only allow toggling if birthday is today or missed (not future)
+    if (status === 'upcoming') {
+      return; // Do nothing for future birthdays
+    }
     onWish(contact.id, !isWished);
   };
 
@@ -57,6 +61,9 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
   if (isToday) borderClass = 'border-rose-200 ring-2 ring-rose-100 bg-rose-50/20';
   if (isMissed) borderClass = 'border-red-200 bg-red-50/30';
   if (isWished) borderClass = 'border-green-200 bg-green-50/50 opacity-75';
+
+  // Determine if the button should be disabled
+  const canToggleWish = status !== 'upcoming';
 
   return (
     <div className={`group bg-white rounded-lg border transition-all hover:shadow-md ${borderClass}`}>
@@ -67,11 +74,20 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
         {/* Toggle Button (Tick) */}
         <button
           onClick={toggleWished}
+          disabled={!canToggleWish}
           className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all border ${isWished
               ? 'bg-green-500 border-green-500 text-white'
-              : 'bg-white border-slate-300 text-transparent hover:border-green-500/60 hover:text-green-400'
+              : canToggleWish
+                ? 'bg-white border-slate-300 text-transparent hover:border-green-500/60 hover:text-green-400 cursor-pointer'
+                : 'bg-gray-100 border-gray-200 text-transparent cursor-not-allowed opacity-50'
             }`}
-          title={isWished ? "Mark as Pending" : "Mark as Wished"}
+          title={
+            !canToggleWish
+              ? "Cannot mark future birthdays"
+              : isWished
+                ? "Mark as Pending"
+                : "Mark as Wished"
+          }
         >
           <Check size={16} strokeWidth={3} />
         </button>

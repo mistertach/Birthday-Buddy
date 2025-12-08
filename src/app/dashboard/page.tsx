@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 import { getContacts } from '@/lib/contact-actions';
 import DashboardClient from '@/components/dashboard-client';
 import { prisma } from '@/lib/prisma';
-import { saveResendSettings, sendResendTestEmail } from '@/lib/email-actions';
 import { ReminderType, type Contact } from '@/lib/types';
 
 export default async function DashboardPage() {
@@ -31,21 +30,18 @@ export default async function DashboardPage() {
 
     const rawUser = session.user?.email
         ? await prisma.user.findUnique({
-              where: { email: session.user.email },
-          })
+            where: { email: session.user.email },
+        })
         : null;
 
-    const resendApiKey = (rawUser as { resendApiKey?: string | null } | null)?.resendApiKey ?? undefined;
-    const resendFromEmail = (rawUser as { resendFromEmail?: string | null } | null)?.resendFromEmail ?? undefined;
+    const isAdmin = rawUser?.isAdmin ?? false;
 
     return (
         <DashboardClient
             initialContacts={normalizedContacts}
             userName={session.user.name}
-            resendApiKey={resendApiKey}
-            resendFromEmail={resendFromEmail}
-            onSaveResendConfig={saveResendSettings}
-            onSendTestEmail={sendResendTestEmail}
+            isAdmin={isAdmin}
         />
     );
 }
+
