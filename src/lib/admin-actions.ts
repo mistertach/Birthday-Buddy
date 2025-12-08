@@ -167,6 +167,54 @@ export async function getSystemStats() {
     };
 }
 
+
+export async function verifyUserManually(userId: string) {
+    const session = await auth();
+    if (!session?.user?.email) {
+        return { ok: false, message: 'Unauthorized' };
+    }
+
+    const currentUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
+
+    if (!currentUser?.isAdmin) {
+        return { ok: false, message: 'Admin access required' };
+    }
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { emailVerified: new Date() },
+    });
+
+    revalidatePath('/admin');
+    return { ok: true, message: 'User verified manually' };
+}
+
+export async function unverifyUserManually(userId: string) {
+    const session = await auth();
+    if (!session?.user?.email) {
+        return { ok: false, message: 'Unauthorized' };
+    }
+
+    const currentUser = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
+
+    if (!currentUser?.isAdmin) {
+        return { ok: false, message: 'Admin access required' };
+    }
+
+    await prisma.user.update({
+        where: { id: userId },
+        data: { emailVerified: null },
+    });
+
+    revalidatePath('/admin');
+    return { ok: true, message: 'User unverified manually' };
+}
+
+
 export async function triggerCronManually() {
     const session = await auth();
     if (!session?.user?.email) {
@@ -347,24 +395,16 @@ export async function getCategories() {
         throw new Error('Admin access required');
     }
 
-    // Get unique categories from all contacts
-    const contacts = await prisma.contact.findMany({
-        select: {
-            relationship: true,
-        },
-        distinct: ['relationship'],
-    });
-
-    const categories = contacts
-        .map(c => c.relationship)
-        .filter((cat): cat is string => cat !== null)
-        .sort();
-
-    // Ensure default categories exist
+    // Default categories
     const defaultCategories = ['Work', 'Family', 'Friends', 'Other'];
-    const allCategories = Array.from(new Set([...defaultCategories, ...categories]));
 
-    return allCategories.sort();
+    // Fetch custom categories from DB
+    const dbCategories = await prisma.category.findMany({
+        select: { name: true }
+    });
+    const customNames = dbCategories.map(c => c.name);
+
+    return Array.from(new Set([...defaultCategories, ...customNames])).sort();
 }
 
 export async function addCategory(category: string) {
@@ -390,8 +430,19 @@ export async function addCategory(category: string) {
         return { ok: false, message: 'Category name is too long (max 50 characters)' };
     }
 
-    revalidatePath('/admin');
-    return { ok: true, message: `Category "${trimmedCategory}" is now available`, category: trimmedCategory };
+    try {
+        await prisma.category.create({
+            data: { name: trimmedCategory }
+        });
+        revalidatePath('/admin');
+        revalidatePath('/dashboard');
+        return { ok: true, message: `Category "${trimmedCategory}" created`, category: trimmedCategory };
+    } catch (e: any) {
+        if (e.code === 'P2002') {
+            return { ok: false, message: 'Category already exists' };
+        }
+        return { ok: false, message: 'Failed to create category' };
+    }
 }
 
 export async function deleteCategory(category: string) {
@@ -414,12 +465,22 @@ export async function deleteCategory(category: string) {
         return { ok: false, message: 'Cannot delete default categories' };
     }
 
-    // Update all contacts with this category to 'Other'
-    await prisma.contact.updateMany({
-        where: { relationship: category },
-        data: { relationship: 'Other' },
-    });
+    // Delete from Category table
+    try {
+        await prisma.category.delete({
+            where: { name: category }
+        });
 
-    revalidatePath('/admin');
-    return { ok: true, message: `Category "${category}" deleted. Contacts moved to "Other"` };
+        // Update all contacts with this category to 'Other'
+        await prisma.contact.updateMany({
+            where: { relationship: category },
+            data: { relationship: 'Other' },
+        });
+
+        revalidatePath('/admin');
+        revalidatePath('/dashboard');
+        return { ok: true, message: `Category "${category}" deleted. Contacts moved to "Other"` };
+    } catch (e) {
+        return { ok: false, message: 'Failed to delete category (not found?)' };
+    }
 }

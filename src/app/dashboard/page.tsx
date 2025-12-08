@@ -35,12 +35,19 @@ export default async function DashboardPage() {
         : null;
 
     const isAdmin = rawUser?.isAdmin ?? false;
+    const notificationPref = rawUser?.wantsEmailNotifications ?? true;
+
+    // Fetch global categories
+    const { getGlobalCategories } = await import('@/lib/contact-actions');
+    const categories = await getGlobalCategories();
 
     return (
         <DashboardClient
             initialContacts={normalizedContacts}
             userName={session.user.name}
             isAdmin={isAdmin}
+            initialCategories={categories}
+            initialNotificationPref={notificationPref}
         />
     );
 }

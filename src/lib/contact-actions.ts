@@ -45,31 +45,31 @@ export async function createContact(data: Omit<Contact, 'id'>) {
 }
 
 export async function createContacts(contactsData: Omit<Contact, 'id'>[]) {
-  const session = await auth();
-  if (!session?.user?.email) {
-    throw new Error('Unauthorized');
-  }
+    const session = await auth();
+    if (!session?.user?.email) {
+        throw new Error('Unauthorized');
+    }
 
-  const user = await prisma.user.findUnique({
-    where: { email: session.user.email },
-  });
+    const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
 
-  if (!user) {
-    throw new Error('User not found');
-  }
+    if (!user) {
+        throw new Error('User not found');
+    }
 
-  // Add userId to each contact
-  const dataWithUser = contactsData.map(c => ({
-    ...c,
-    userId: user.id,
-  }));
+    // Add userId to each contact
+    const dataWithUser = contactsData.map(c => ({
+        ...c,
+        userId: user.id,
+    }));
 
-  const created = await prisma.contact.createMany({
-    data: dataWithUser,
-  });
+    const created = await prisma.contact.createMany({
+        data: dataWithUser,
+    });
 
-  revalidatePath('/dashboard');
-  return created;
+    revalidatePath('/dashboard');
+    return created;
 }
 
 export async function updateContact(id: string, data: Partial<Contact>) {
@@ -111,4 +111,19 @@ export async function markAsWished(id: string, wished: boolean) {
     });
 
     revalidatePath('/dashboard');
+}
+
+export async function getGlobalCategories() {
+    // Default categories
+    const defaultCategories = ['Work', 'Family', 'Friends', 'Other'];
+
+    // Fetch custom categories from DB
+    const dbCategories = await prisma.category.findMany({
+        select: { name: true }
+    });
+
+    const customNames = dbCategories.map(c => c.name);
+
+    // Merge and deduplicate
+    return Array.from(new Set([...defaultCategories, ...customNames])).sort();
 }

@@ -19,12 +19,14 @@ import {
     Shield
 } from 'lucide-react';
 import { createContact, createContacts, updateContact, deleteContact, markAsWished } from '@/lib/contact-actions';
-import { handleSignOut } from '@/lib/actions';
+import { handleSignOut, updateNotificationPreference } from '@/lib/actions';
 
 interface DashboardClientProps {
     initialContacts: Contact[];
     userName?: string | null;
     isAdmin?: boolean;
+    initialCategories: string[];
+    initialNotificationPref: boolean;
 }
 
 const normalizeContact = (contact: any): Contact => ({
@@ -42,11 +44,14 @@ export default function DashboardClient({
     initialContacts,
     userName,
     isAdmin,
+    initialCategories,
+    initialNotificationPref,
 }: DashboardClientProps) {
     const [contacts, setContacts] = useState<Contact[]>(() => initialContacts.map(normalizeContact));
     const [view, setView] = useState<'list' | 'calendar'>('list');
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [wantsNotifications, setWantsNotifications] = useState(initialNotificationPref);
     const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
     const openNewContactModal = () => {
         setEditingContact(undefined);
@@ -63,11 +68,12 @@ export default function DashboardClient({
         return { [m]: true };
     });
 
+    // Merge global categories with any unique ones found in user's contacts
     const categories = useMemo(() => {
-        const cats = new Set<string>();
+        const cats = new Set<string>(initialCategories);
         contacts.forEach(c => c.relationship && cats.add(c.relationship));
-        return Array.from(cats);
-    }, [contacts]);
+        return Array.from(cats).sort();
+    }, [contacts, initialCategories]);
 
     const toggleMonth = (month: string) => {
         setExpandedMonths(prev => ({ ...prev, [month]: !prev[month] }));
@@ -188,6 +194,20 @@ export default function DashboardClient({
             }
         };
         reader.readAsText(file);
+    };
+
+    const handleToggleNotifications = async (enabled: boolean) => {
+        try {
+            const result = await updateNotificationPreference(enabled);
+            if (result.success) {
+                setWantsNotifications(enabled);
+            } else {
+                alert('Failed to update notification settings');
+            }
+        } catch (error) {
+            console.error('Failed to toggle notifications:', error);
+            alert('Failed to update settings');
+        }
     };
 
     const sortedContacts = useMemo(() => {
@@ -387,7 +407,7 @@ export default function DashboardClient({
 
                         <div className="grid grid-cols-1 gap-4 text-left">
                             {calendarMonths.map((monthIndex) => {
-                                const monthContacts = contacts.filter(c => (c.month - 1) === monthIndex);
+                                const monthContacts = sortedContacts.filter(c => (c.month - 1) === monthIndex);
                                 monthContacts.sort((a, b) => a.day - b.day);
 
                                 if (monthContacts.length === 0) return null;
@@ -462,9 +482,13 @@ export default function DashboardClient({
                 </button>
             </nav>
 
+            {/* Settings Modal */}
+
             {isSettingsOpen && (
                 <SettingsModal
                     onClose={() => setIsSettingsOpen(false)}
+                    wantsNotifications={wantsNotifications}
+                    onToggleNotifications={handleToggleNotifications}
                     onExport={() => {
                         // Convert contacts to CSV
                         const headers = ['name', 'day', 'month', 'year', 'relationship', 'phone', 'reminderType', 'notes'];

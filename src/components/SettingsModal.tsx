@@ -1,18 +1,29 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Download, Upload, X, Database, FileText, Info } from 'lucide-react';
 
 interface Props {
   onClose: () => void;
   onExport: () => void;
   onImportCSV: (file: File) => void;
+  wantsNotifications: boolean;
+  onToggleNotifications: (enabled: boolean) => Promise<void>;
 }
 
 export const SettingsModal: React.FC<Props> = ({
   onClose,
   onExport,
-  onImportCSV
+  onImportCSV,
+  wantsNotifications,
+  onToggleNotifications
 }) => {
   const csvInputRef = useRef<HTMLInputElement>(null);
+  const [isToggling, setIsToggling] = useState(false);
+
+  const handleToggle = async () => {
+    setIsToggling(true);
+    await onToggleNotifications(!wantsNotifications);
+    setIsToggling(false);
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -48,7 +59,7 @@ export const SettingsModal: React.FC<Props> = ({
             <div className="bg-indigo-100 p-2 rounded-full">
               <Database size={20} className="text-indigo-600" />
             </div>
-            <h2 className="text-xl font-bold text-slate-900">Import & Export</h2>
+            <h2 className="text-xl font-bold text-slate-900">Settings</h2>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
             <X size={20} className="text-slate-500" />
@@ -56,6 +67,22 @@ export const SettingsModal: React.FC<Props> = ({
         </div>
 
         <div className="space-y-6">
+          {/* Notifications Toggle */}
+          <div className="bg-slate-50 border border-slate-200 rounded-lg p-4 flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-slate-900">Email Notifications</h3>
+              <p className="text-sm text-slate-500">Receive birthday reminders via email</p>
+            </div>
+            <button
+              onClick={handleToggle}
+              disabled={isToggling}
+              className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${wantsNotifications ? 'bg-indigo-600' : 'bg-slate-300'}`}
+            >
+              <span
+                className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${wantsNotifications ? 'translate-x-6' : 'translate-x-1'}`}
+              />
+            </button>
+          </div>
           {/* Info Box */}
           <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
             <div className="flex items-start gap-3">

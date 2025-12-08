@@ -26,6 +26,8 @@ import {
     sendAdminTestEmail,
     addCategory,
     deleteCategory,
+    verifyUserManually,
+    unverifyUserManually
 } from '@/lib/admin-actions';
 import { sendTestDailyEmail, sendTestWeeklyEmail } from '@/lib/email-actions';
 
@@ -525,12 +527,25 @@ export default function AdminPanelClient({ users, stats, resendSettings, categor
                                             </button>
                                         </td>
                                         <td className="px-6 py-4 whitespace-nowrap">
-                                            {user.emailVerified ? (
-                                                <CheckCircle className="w-5 h-5 text-green-500" />
-                                            ) : (
-                                                <XCircle className="w-5 h-5 text-gray-400" />
-                                            )}
-                                        </td>
+                                                <button
+                                                    onClick={async () => {
+                                                        const action = user.emailVerified ? unverifyUserManually : verifyUserManually;
+                                                        startTransition(async () => {
+                                                            const result = await action(user.id);
+                                                            alert(result.message);
+                                                        });
+                                                    }}
+                                                    disabled={isPending}
+                                                    className="hover:opacity-75 transition-opacity"
+                                                    title={user.emailVerified ? "Click to unverify" : "Click to verify manually"}
+                                                >
+                                                    {user.emailVerified ? (
+                                                        <CheckCircle className="w-5 h-5 text-green-500" />
+                                                    ) : (
+                                                        <XCircle className="w-5 h-5 text-gray-400" />
+                                                    )}
+                                                </button>
+                                            </td>
                                         <td className="px-6 py-4 whitespace-nowrap text-right">
                                             <button
                                                 onClick={() => handleDeleteUser(user.id, user.name)}

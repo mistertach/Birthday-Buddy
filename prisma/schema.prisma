@@ -84,3 +84,8 @@ model Contact {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
+
+model Category {
+  id   String @id @default(cuid())
+  name String @unique
+}

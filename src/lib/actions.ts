@@ -1,6 +1,6 @@
 'use server';
 
-import { signIn, signOut } from '@/auth';
+import { auth, signIn, signOut } from '@/auth';
 import { AuthError } from 'next-auth';
 import { prisma } from '@/lib/prisma';
 import bcrypt from 'bcryptjs';
@@ -86,4 +86,24 @@ export async function registerUser(
     });
 
     return { success: true };
+}
+
+export async function updateNotificationPreference(wantsNotifications: boolean) {
+    const session = await auth();
+    if (!session?.user?.email) {
+        throw new Error('Unauthorized');
+    }
+
+    try {
+        await prisma.user.update({
+            where: { email: session.user.email },
+            data: { wantsEmailNotifications: wantsNotifications },
+        });
+
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (error) {
+        console.error('Failed to update notification preference:', error);
+        return { success: false, error: 'Failed to update settings' };
+    }
 }
