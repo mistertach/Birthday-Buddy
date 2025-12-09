@@ -315,6 +315,7 @@ export default function DashboardClient({
                             parentContact={parent}
                             onWish={handleWish}
                             onEdit={(c) => { setEditingContact(c); setIsModalOpen(true); }}
+                            onDelete={(c) => handleDelete(c.id)}
                         />
                     );
                 })}

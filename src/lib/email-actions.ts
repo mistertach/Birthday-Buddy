@@ -563,6 +563,7 @@ export async function sendInvitationEmail(
         <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #334155;">
           <h2 style="color:#4f46e5;">🎉 You've been invited!</h2>
           <p><strong>${senderName}</strong> wants to share their birthday contacts with you on Birthday Buddy.</p>
+          <p style="font-size: 16px; margin: 16px 0;"><strong>Never again miss a birthday!</strong> Birthday Buddy helps you organize your contacts and sends you timely reminders so you can be the best friend/relative ever.</p>
           <p>Click the link below to accept the invitation and import the shared contacts:</p>
           <p>
             <a href="${inviteLink}" style="display:inline-block; background-color:#4f46e5; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">Accept Invitation</a>

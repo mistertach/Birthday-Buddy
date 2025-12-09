@@ -13,7 +13,14 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
     const [friendEmail, setFriendEmail] = useState('');
     const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
+    const [selectedCategory, setSelectedCategory] = useState<string>('All');
     const [isSubmitting, setIsSubmitting] = useState(false);
+
+    // Extract unique categories from contacts
+    const categories = useMemo(() => {
+        const uniqueCats = new Set(contacts.map(c => c.relationship || 'Other'));
+        return ['All', ...Array.from(uniqueCats).sort()];
+    }, [contacts]);
 
     const toggleContact = (id: string) => {
         const newSelected = new Set(selectedContactIds);
@@ -45,18 +52,29 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
     };
 
     const filteredContacts = useMemo(() => {
-        return contacts.filter(c =>
-            c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-            c.relationship?.toLowerCase().includes(searchQuery.toLowerCase())
-        ).sort((a, b) => a.name.localeCompare(b.name));
-    }, [contacts, searchQuery]);
+        return contacts.filter(c => {
+            const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                c.relationship?.toLowerCase().includes(searchQuery.toLowerCase());
+            const matchesCategory = selectedCategory === 'All' || (c.relationship || 'Other') === selectedCategory;
+            return matchesSearch && matchesCategory;
+        }).sort((a, b) => a.name.localeCompare(b.name));
+    }, [contacts, searchQuery, selectedCategory]);
 
     const selectAll = () => {
-        if (selectedContactIds.size === filteredContacts.length) {
-            setSelectedContactIds(new Set());
+        // Only select from the currently filtered view
+        const currentlyVisibleIds = new Set(filteredContacts.map(c => c.id));
+        const allVisibleSelected = filteredContacts.every(c => selectedContactIds.has(c.id));
+
+        const newSelected = new Set(selectedContactIds);
+
+        if (allVisibleSelected) {
+            // Deselect visible
+            currentlyVisibleIds.forEach(id => newSelected.delete(id));
         } else {
-            setSelectedContactIds(new Set(filteredContacts.map(c => c.id)));
+            // Select visible
+            currentlyVisibleIds.forEach(id => newSelected.add(id));
         }
+        setSelectedContactIds(newSelected);
     };
 
     return (
@@ -118,7 +136,7 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                         </div>
                     ) : (
                         <div className="flex flex-col h-full">
-                            <div className="relative mb-4">
+                            <div className="relative mb-3">
                                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
                                 <input
                                     type="text"
@@ -129,15 +147,31 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                                 />
                             </div>
 
+                            {/* Category Filter */}
+                            <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
+                                {categories.map(cat => (
+                                    <button
+                                        key={cat}
+                                        onClick={() => setSelectedCategory(cat)}
+                                        className={`whitespace-nowrap px-3 py-1 rounded-full text-xs font-medium transition-colors ${selectedCategory === cat
+                                            ? 'bg-indigo-600 text-white'
+                                            : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                                            }`}
+                                    >
+                                        {cat}
+                                    </button>
+                                ))}
+                            </div>
+
                             <div className="flex justify-between items-center mb-2">
                                 <span className="text-sm font-medium text-slate-500">
-                                    {selectedContactIds.size} selected
+                                    {selectedContactIds.size} selected ({filteredContacts.length} visible)
                                 </span>
                                 <button
                                     onClick={selectAll}
                                     className="text-sm text-indigo-600 hover:text-indigo-800 font-medium"
                                 >
-                                    {selectedContactIds.size === filteredContacts.length ? 'Deselect All' : 'Select All'}
+                                    {filteredContacts.length > 0 && filteredContacts.every(c => selectedContactIds.has(c.id)) ? 'Deselect All' : 'Select All'}
                                 </button>
                             </div>
 
@@ -147,8 +181,8 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                                         key={contact.id}
                                         onClick={() => toggleContact(contact.id)}
                                         className={`flex items-center justify-between p-3 rounded-lg cursor-pointer transition-colors ${selectedContactIds.has(contact.id)
-                                                ? 'bg-indigo-50 border border-indigo-200'
-                                                : 'hover:bg-slate-50 border border-transparent'
+                                            ? 'bg-indigo-50 border border-indigo-200'
+                                            : 'hover:bg-slate-50 border border-transparent'
                                             }`}
                                     >
                                         <div>
@@ -158,8 +192,8 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                                             </p>
                                         </div>
                                         <div className={`w-5 h-5 rounded-full border flex items-center justify-center ${selectedContactIds.has(contact.id)
-                                                ? 'bg-indigo-600 border-indigo-600 text-white'
-                                                : 'border-slate-300'
+                                            ? 'bg-indigo-600 border-indigo-600 text-white'
+                                            : 'border-slate-300'
                                             }`}>
                                             {selectedContactIds.has(contact.id) && <Check size={12} />}
                                         </div>

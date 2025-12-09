@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Contact, GreetingTemplate } from '../lib/types';
 import { getDaysUntil, getAgeTurning, getCategoryColor, getBirthdayStatus } from '../lib/utils';
-import { MessageCircle, Edit2, Sparkles, StickyNote, Link, Check, CheckCircle } from 'lucide-react';
+import { MessageCircle, Edit2, Sparkles, StickyNote, Link, Check, Trash2 } from 'lucide-react';
 import { AIGenerator } from './AIGenerator';
 
 interface Props {
@@ -9,6 +9,7 @@ interface Props {
   parentContact?: Contact;
   onWish: (contactId: string, status?: boolean) => void;
   onEdit: (contact: Contact) => void;
+  onDelete?: (contact: Contact) => void;
 }
 
 const PRESET_MESSAGES: GreetingTemplate[] = [
@@ -17,7 +18,7 @@ const PRESET_MESSAGES: GreetingTemplate[] = [
   { id: '3', text: 'Happy Birthday! Have a blast! 🎂', category: 'Casual' },
 ];
 
-export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, onEdit }) => {
+export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, onEdit, onDelete }) => {
   const [showActions, setShowActions] = useState(false);
   const [showAI, setShowAI] = useState(false);
 
@@ -76,10 +77,10 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
           onClick={toggleWished}
           disabled={!canToggleWish}
           className={`shrink-0 w-7 h-7 rounded-full flex items-center justify-center transition-all border ${isWished
-              ? 'bg-green-500 border-green-500 text-white'
-              : canToggleWish
-                ? 'bg-white border-slate-300 text-transparent hover:border-green-500/60 hover:text-green-400 cursor-pointer'
-                : 'bg-gray-100 border-gray-200 text-transparent cursor-not-allowed opacity-50'
+            ? 'bg-green-500 border-green-500 text-white'
+            : canToggleWish
+              ? 'bg-white border-slate-300 text-transparent hover:border-green-500/60 hover:text-green-400 cursor-pointer'
+              : 'bg-gray-100 border-gray-200 text-transparent cursor-not-allowed opacity-50'
             }`}
           title={
             !canToggleWish
@@ -155,6 +156,20 @@ export const ContactCard: React.FC<Props> = ({ contact, parentContact, onWish, o
           >
             <Edit2 size={18} />
           </button>
+
+          {onDelete && (
+            <button
+              onClick={() => {
+                if (window.confirm(`Are you sure you want to delete ${contact.name}?`)) {
+                  onDelete(contact);
+                }
+              }}
+              className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-colors"
+              title="Delete"
+            >
+              <Trash2 size={18} />
+            </button>
+          )}
         </div>
       </div>
 

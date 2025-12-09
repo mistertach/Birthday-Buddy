@@ -12,6 +12,10 @@ export async function createInvitation(recipientEmail: string, contactIds: strin
         return { ok: false, message: 'Unauthorized' };
     }
 
+    if (recipientEmail.toLowerCase() === session.user.email.toLowerCase()) {
+        return { ok: false, message: 'You cannot invite yourself.' };
+    }
+
     const sender = await prisma.user.findUnique({
         where: { email: session.user.email },
     });
@@ -47,7 +51,7 @@ export async function createInvitation(recipientEmail: string, contactIds: strin
         const emailResult = await sendInvitationEmail(recipientEmail, sender.name || 'A friend', inviteLink);
 
         if (!emailResult.ok) {
-            // If email fails, delete the invitation so they can try again? 
+            // If email fails, delete the invitation so they can try again?
             // Or just return partial success? For now, we'll keep it but warn.
             return { ok: true, message: 'Invitation created but email failed to send. You can send the link manually.', link: inviteLink };
         }
@@ -88,6 +92,7 @@ export async function getInvitationByToken(token: string) {
                 id: { in: invitation.sharedContactIds }
             },
             select: {
+                id: true,
                 name: true,
                 relationship: true
             }
@@ -103,7 +108,7 @@ export async function getInvitationByToken(token: string) {
     }
 }
 
-export async function acceptInvitation(token: string) {
+export async function acceptInvitation(token: string, selectedContactIds?: string[]) {
     const session = await auth();
     if (!session?.user?.email) {
         return { ok: false, message: 'Unauthorized. Please sign in or register first.' };
@@ -126,10 +131,19 @@ export async function acceptInvitation(token: string) {
     }
 
     try {
+        // Determine which IDs to actually import.
+        // If selectedContactIds is provided, intersect with invitation.sharedContactIds for security.
+        // If not provided (legacy/default), import all shared.
+        let idsToImport = invitation.sharedContactIds;
+        if (selectedContactIds && Array.isArray(selectedContactIds)) {
+            const allowedSet = new Set(invitation.sharedContactIds);
+            idsToImport = selectedContactIds.filter(id => allowedSet.has(id));
+        }
+
         // Fetch the original contacts to copy
         const originalContacts = await prisma.contact.findMany({
             where: {
-                id: { in: invitation.sharedContactIds }
+                id: { in: idsToImport }
             }
         });
 
