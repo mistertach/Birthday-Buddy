@@ -12,8 +12,8 @@ export default async function InvitationPage(props: { params: Promise<{ token: s
 
     // Force login if not authenticated
     if (!session?.user?.email) {
-        // Redirect to login, preserving this page as the callback
-        redirect(`/login?callbackUrl=/invite/${token}`);
+        // Redirect to register, preserving this page as the callback
+        redirect(`/register?callbackUrl=/invite/${token}`);
     }
 
     const data = await getInvitationByToken(token);
