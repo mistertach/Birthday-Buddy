@@ -7,29 +7,33 @@ import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
 
 export async function createInvitation(recipientEmail: string, contactIds: string[]) {
-    const session = await auth();
-    if (!session?.user?.email) {
-        return { ok: false, message: 'Unauthorized' };
-    }
-
-    if (recipientEmail.toLowerCase() === session.user.email.toLowerCase()) {
-        return { ok: false, message: 'You cannot invite yourself.' };
-    }
-
-    const sender = await prisma.user.findUnique({
-        where: { email: session.user.email },
-    });
-
-    if (!sender) {
-        return { ok: false, message: 'User not found' };
-    }
-
-    // Generate a secure random token
-    const token = crypto.randomBytes(32).toString('hex');
-    const expiresAt = new Date();
-    expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
-
     try {
+        const session = await auth();
+        if (!session?.user?.email) {
+            return { ok: false, message: 'Unauthorized' };
+        }
+
+        if (recipientEmail.toLowerCase() === session.user.email.toLowerCase()) {
+            return { ok: false, message: 'You cannot invite yourself.' };
+        }
+
+        if (!Array.isArray(contactIds)) {
+            return { ok: false, message: 'Invalid contacts selected.' };
+        }
+
+        const sender = await prisma.user.findUnique({
+            where: { email: session.user.email },
+        });
+
+        if (!sender) {
+            return { ok: false, message: 'User not found' };
+        }
+
+        // Generate a secure random token
+        const token = crypto.randomBytes(32).toString('hex');
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
+
         const invitation = await prisma.invitation.create({
             data: {
                 token,
@@ -51,15 +55,19 @@ export async function createInvitation(recipientEmail: string, contactIds: strin
         const emailResult = await sendInvitationEmail(recipientEmail, sender.name || 'A friend', inviteLink);
 
         if (!emailResult.ok) {
-            // If email fails, delete the invitation so they can try again?
-            // Or just return partial success? For now, we'll keep it but warn.
-            return { ok: true, message: 'Invitation created but email failed to send. You can send the link manually.', link: inviteLink };
+            // If email fails, return partial success with warning
+            console.warn('Invitation created but email failed:', emailResult.message);
+            return {
+                ok: true,
+                message: 'Invitation created but email failed to send. You can copy the link manually.',
+                link: inviteLink
+            };
         }
 
         return { ok: true, message: 'Invitation sent successfully!' };
-    } catch (error) {
+    } catch (error: any) {
         console.error('Failed to create invitation:', error);
-        return { ok: false, message: 'Failed to create invitation' };
+        return { ok: false, message: error?.message || 'Failed to create invitation' };
     }
 }
 
