@@ -6,6 +6,8 @@ import { sendInvitationEmail } from '@/lib/email-actions';
 import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
 
+export const runtime = 'nodejs'; // Enforce Node.js runtime
+
 export async function createInvitation(recipientEmail: string, contactIds: string[]) {
     try {
         const session = await auth();

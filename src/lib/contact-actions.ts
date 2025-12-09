@@ -5,6 +5,8 @@ import { auth } from '@/auth';
 import { revalidatePath } from 'next/cache';
 import type { Contact } from '@/lib/types';
 
+export const runtime = 'nodejs';
+
 export async function getContacts() {
     const session = await auth();
     if (!session?.user?.email) {

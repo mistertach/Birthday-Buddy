@@ -6,6 +6,8 @@ import { Resend } from 'resend';
 import { revalidatePath } from 'next/cache';
 import { ReminderType } from '@/lib/types';
 
+export const runtime = 'nodejs';
+
 type ResendSettings = {
   resendApiKey: string;
   resendFromEmail: string;
