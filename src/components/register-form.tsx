@@ -6,11 +6,12 @@ import { registerUser } from '@/lib/actions';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function RegisterForm() {
+export default function RegisterForm({ callbackUrl }: { callbackUrl?: string }) {
     const [state, dispatch] = useActionState(registerUser, undefined);
 
     return (
         <form action={dispatch} className="space-y-3">
+            <input type="hidden" name="callbackUrl" value={callbackUrl || '/dashboard'} />
             <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
                 <h1 className="mb-3 text-2xl font-bold text-gray-900">
                     Create an account

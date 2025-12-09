@@ -78,11 +78,12 @@ export async function registerUser(
     });
 
     // Sign in automatically
+    const callbackUrl = formData.get('callbackUrl') as string;
     await signIn('credentials', {
         email,
         password,
         redirect: true,
-        redirectTo: '/dashboard',
+        redirectTo: callbackUrl || '/dashboard',
     });
 
     return { success: true };
