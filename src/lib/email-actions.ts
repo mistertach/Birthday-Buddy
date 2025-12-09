@@ -542,3 +542,40 @@ export async function sendTestWeeklyEmail() {
     return { ok: false, message };
   }
 }
+
+export async function sendInvitationEmail(
+  toEmail: string,
+  senderName: string,
+  inviteLink: string
+): Promise<{ ok: boolean; message?: string }> {
+  const settings = await getSharedSettingsRecord();
+  if (!settings?.resendApiKey || !settings?.resendFromEmail) {
+    return { ok: false, message: 'Email settings are not configured.' };
+  }
+
+  try {
+    const resend = new Resend(settings.resendApiKey);
+    await resend.emails.send({
+      from: `Birthday Buddy <${settings.resendFromEmail}>`,
+      to: toEmail,
+      subject: `${senderName} invited you to Birthday Buddy!`,
+      html: `
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #334155;">
+          <h2 style="color:#4f46e5;">🎉 You've been invited!</h2>
+          <p><strong>${senderName}</strong> wants to share their birthday contacts with you on Birthday Buddy.</p>
+          <p>Click the link below to accept the invitation and import the shared contacts:</p>
+          <p>
+            <a href="${inviteLink}" style="display:inline-block; background-color:#4f46e5; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">Accept Invitation</a>
+          </p>
+          <p style="margin-top:24px; font-size:12px; color:#64748b;">If you ignore this email, the invitation will expire automatically.</p>
+        </div>
+      `,
+    });
+
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Failed to send invitation email:', error);
+    return { ok: false, message: error?.message ?? 'Failed to send invitation email.' };
+  }
+}
+

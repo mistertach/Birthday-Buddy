@@ -6,7 +6,9 @@ import { getCategoryDotColor, getVisualDate, getBirthdayStatus } from '@/lib/uti
 import { AddEditContact } from '@/components/AddEditContact';
 import { ContactCard } from '@/components/ContactCard';
 import { ContactDetailModal } from '@/components/ContactDetailModal';
+
 import { SettingsModal } from '@/components/SettingsModal';
+import { InviteModal } from '@/components/InviteModal';
 import {
     Plus,
     Search,
@@ -16,7 +18,9 @@ import {
     ChevronRight,
     LogOut,
     Settings,
-    Shield
+
+    Shield,
+    UserPlus
 } from 'lucide-react';
 import { createContact, createContacts, updateContact, deleteContact, markAsWished } from '@/lib/contact-actions';
 import { handleSignOut, updateNotificationPreference } from '@/lib/actions';
@@ -49,8 +53,10 @@ export default function DashboardClient({
 }: DashboardClientProps) {
     const [contacts, setContacts] = useState<Contact[]>(() => initialContacts.map(normalizeContact));
     const [view, setView] = useState<'list' | 'calendar'>('list');
+
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
     const [wantsNotifications, setWantsNotifications] = useState(initialNotificationPref);
     const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
     const openNewContactModal = () => {
@@ -347,6 +353,15 @@ export default function DashboardClient({
                             <Shield size={20} />
                         </a>
                     )}
+
+                    <button
+                        onClick={() => setIsInviteModalOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors"
+                    >
+                        <UserPlus size={16} />
+                        Invite Friend
+                    </button>
+
                     <button
                         onClick={() => setIsSettingsOpen(true)}
                         className="p-2 rounded-full text-slate-400 hover:bg-slate-100 transition-colors"
@@ -481,6 +496,14 @@ export default function DashboardClient({
                     <span className="text-[10px] font-medium">Calendar</span>
                 </button>
             </nav>
+
+            {/* Invite Modal */}
+            {isInviteModalOpen && (
+                <InviteModal
+                    onClose={() => setIsInviteModalOpen(false)}
+                    contacts={contacts}
+                />
+            )}
 
             {/* Settings Modal */}
 

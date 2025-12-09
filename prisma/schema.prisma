@@ -21,6 +21,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   contacts      Contact[]
+  invitations   Invitation[]
 }
 
 model AppSettings {
@@ -88,4 +89,16 @@ model Contact {
 model Category {
   id   String @id @default(cuid())
   name String @unique
+}
+
+model Invitation {
+  id               String   @id @default(cuid())
+  token            String   @unique
+  senderId         String
+  sender           User     @relation(fields: [senderId], references: [id], onDelete: Cascade)
+  recipientEmail   String
+  sharedContactIds String[]
+  status           String   @default("PENDING") // PENDING, ACCEPTED, EXPIRED
+  createdAt        DateTime @default(now())
+  expiresAt        DateTime
 }
