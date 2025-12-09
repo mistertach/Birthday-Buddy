@@ -6,7 +6,7 @@ import { registerUser } from '@/lib/actions';
 import { Loader2 } from 'lucide-react';
 import Link from 'next/link';
 
-export default function RegisterForm({ callbackUrl }: { callbackUrl?: string }) {
+export default function RegisterForm({ callbackUrl, senderName }: { callbackUrl?: string; senderName?: string }) {
     const [state, dispatch] = useActionState(registerUser, undefined);
 
     return (
@@ -14,7 +14,16 @@ export default function RegisterForm({ callbackUrl }: { callbackUrl?: string }) 
             <input type="hidden" name="callbackUrl" value={callbackUrl || '/dashboard'} />
             <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
                 <h1 className="mb-3 text-2xl font-bold text-gray-900">
-                    Create an account
+                    {senderName ? (
+                        <>
+                            <span className="block text-lg font-normal text-gray-600 mb-1">
+                                {senderName} invited you!
+                            </span>
+                            Create your account
+                        </>
+                    ) : (
+                        'Create an account'
+                    )}
                 </h1>
                 <div className="w-full">
                     <div>
