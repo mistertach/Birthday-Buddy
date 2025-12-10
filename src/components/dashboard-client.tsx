@@ -9,6 +9,8 @@ import { ContactDetailModal } from '@/components/ContactDetailModal';
 
 import { SettingsModal } from '@/components/SettingsModal';
 import { InviteModal } from '@/components/InviteModal';
+import PendingSharesNotification from '@/components/PendingSharesNotification';
+import AcceptShareModal from '@/components/AcceptShareModal';
 import {
     Plus,
     Search,
@@ -56,7 +58,8 @@ export default function DashboardClient({
 
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
-    const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
+    const [showInviteModal, setShowInviteModal] = useState(false);
+    const [showShareModal, setShowShareModal] = useState(false);
     const [wantsNotifications, setWantsNotifications] = useState(initialNotificationPref);
     const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
     const openNewContactModal = () => {
@@ -356,7 +359,7 @@ export default function DashboardClient({
                     )}
 
                     <button
-                        onClick={() => setIsInviteModalOpen(true)}
+                        onClick={() => setShowInviteModal(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors"
                     >
                         <UserPlus size={16} />
@@ -499,10 +502,10 @@ export default function DashboardClient({
             </nav>
 
             {/* Invite Modal */}
-            {isInviteModalOpen && (
+            {showInviteModal && (
                 <InviteModal
-                    onClose={() => setIsInviteModalOpen(false)}
                     contacts={contacts}
+                    onClose={() => setShowInviteModal(false)}
                 />
             )}
 

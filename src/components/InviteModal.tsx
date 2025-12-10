@@ -1,20 +1,26 @@
 import React, { useState, useMemo } from 'react';
-import { X, Send, Search, Check, Users } from 'lucide-react';
+import { X, Send, Search, Check, Users, UserPlus, Share2, Loader2 } from 'lucide-react';
 import { type Contact } from '@/lib/types';
 import { createInvitation } from '@/lib/invite-actions';
+import { checkUserExists, createContactShare } from '@/lib/contact-share-actions';
 
 interface Props {
     onClose: () => void;
     contacts: Contact[];
 }
 
+type Mode = 'invite' | 'share';
+
 export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
+    const [mode, setMode] = useState<Mode>('invite');
     const [step, setStep] = useState<'details' | 'select'>('details');
     const [friendEmail, setFriendEmail] = useState('');
+    const [shareMessage, setShareMessage] = useState('');
     const [selectedContactIds, setSelectedContactIds] = useState<Set<string>>(new Set());
     const [searchQuery, setSearchQuery] = useState('');
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [userExistsStatus, setUserExistsStatus] = useState<'idle' | 'checking' | 'exists' | 'not-exists'>('idle');
 
     // Extract unique categories from contacts
     const categories = useMemo(() => {
@@ -32,19 +38,47 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
         setSelectedContactIds(newSelected);
     };
 
-    const handleInvite = async () => {
+    const handleEmailChange = async (email: string) => {
+        setFriendEmail(email);
+
+        if (mode === 'share' && email.includes('@')) {
+            setUserExistsStatus('checking');
+            const result = await checkUserExists(email);
+            if (result.ok) {
+                setUserExistsStatus(result.exists ? 'exists' : 'not-exists');
+            } else {
+                setUserExistsStatus('idle');
+            }
+        } else {
+            setUserExistsStatus('idle');
+        }
+    };
+
+    const handleSubmit = async () => {
         if (!friendEmail) return;
+
         setIsSubmitting(true);
         try {
-            const result = await createInvitation(friendEmail, Array.from(selectedContactIds));
-            if (result.ok) {
-                alert(result.message);
-                onClose();
+            if (mode === 'invite') {
+                const result = await createInvitation(friendEmail, Array.from(selectedContactIds));
+                if (result.ok) {
+                    alert(result.message);
+                    onClose();
+                } else {
+                    alert(result.message || 'Failed to send invitation');
+                }
             } else {
-                alert(result.message || 'Failed to send invitation');
+                // Share mode
+                const result = await createContactShare(friendEmail, Array.from(selectedContactIds), shareMessage || undefined);
+                if (result.ok) {
+                    alert(result.message);
+                    onClose();
+                } else {
+                    alert(result.message || 'Failed to share contacts');
+                }
             }
         } catch (error) {
-            console.error('Invite error:', error);
+            console.error('Submit error:', error);
             alert('An unexpected error occurred');
         } finally {
             setIsSubmitting(false);
@@ -61,17 +95,14 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
     }, [contacts, searchQuery, selectedCategory]);
 
     const selectAll = () => {
-        // Only select from the currently filtered view
         const currentlyVisibleIds = new Set(filteredContacts.map(c => c.id));
         const allVisibleSelected = filteredContacts.every(c => selectedContactIds.has(c.id));
 
         const newSelected = new Set(selectedContactIds);
 
         if (allVisibleSelected) {
-            // Deselect visible
             currentlyVisibleIds.forEach(id => newSelected.delete(id));
         } else {
-            // Select visible
             currentlyVisibleIds.forEach(id => newSelected.add(id));
         }
         setSelectedContactIds(newSelected);
@@ -80,17 +111,43 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
     return (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white w-full max-w-lg rounded-2xl shadow-2xl animate-fade-in flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="flex justify-between items-center p-6 border-b border-gray-100 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        <div className="bg-indigo-100 p-2 rounded-full">
-                            <Users size={20} className="text-indigo-600" />
+                {/* Header with Tab Selection */}
+                <div className="flex-shrink-0">
+                    <div className="flex justify-between items-center p-6 border-b border-gray-100">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-indigo-100 p-2 rounded-full">
+                                <Users size={20} className="text-indigo-600" />
+                            </div>
+                            <h2 className="text-xl font-bold text-slate-900">Share Birthday Contacts</h2>
                         </div>
-                        <h2 className="text-xl font-bold text-slate-900">Invite a Friend</h2>
+                        <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
+                            <X size={20} className="text-slate-500" />
+                        </button>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full transition-colors">
-                        <X size={20} className="text-slate-500" />
-                    </button>
+
+                    {/* Mode Tabs */}
+                    <div className="flex border-b border-gray-200 px-6">
+                        <button
+                            onClick={() => { setMode('invite'); setUserExistsStatus('idle'); }}
+                            className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${mode === 'invite'
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            <UserPlus size={18} />
+                            Invite New User
+                        </button>
+                        <button
+                            onClick={() => { setMode('share'); setUserExistsStatus('idle'); }}
+                            className={`flex items-center gap-2 px-4 py-3 font-medium border-b-2 transition-colors ${mode === 'share'
+                                    ? 'border-indigo-600 text-indigo-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            <Share2 size={18} />
+                            Share with User
+                        </button>
+                    </div>
                 </div>
 
                 {/* Content */}
@@ -99,25 +156,60 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                         <div className="space-y-6">
                             <div>
                                 <label className="block text-sm font-medium text-slate-700 mb-1">
-                                    Friend's Email Address
+                                    {mode === 'invite' ? "Friend's Email Address" : 'User Email Address'}
                                 </label>
                                 <input
                                     type="email"
                                     value={friendEmail}
-                                    onChange={(e) => setFriendEmail(e.target.value)}
+                                    onChange={(e) => handleEmailChange(e.target.value)}
                                     placeholder="friend@example.com"
-                                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all"
+                                    className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-gray-900"
                                     autoFocus
                                 />
-                                <p className="mt-2 text-sm text-slate-500">
-                                    We'll send them an invitation link to join Birthday Buddy.
-                                </p>
+                                {mode === 'share' && userExistsStatus === 'checking' && (
+                                    <p className="mt-2 text-sm text-slate-500 flex items-center gap-2">
+                                        <Loader2 size={14} className="animate-spin" />
+                                        Checking...
+                                    </p>
+                                )}
+                                {mode === 'share' && userExistsStatus === 'exists' && (
+                                    <p className="mt-2 text-sm text-green-600 flex items-center gap-1">
+                                        <Check size={14} /> User found
+                                    </p>
+                                )}
+                                {mode === 'share' && userExistsStatus === 'not-exists' && (
+                                    <p className="mt-2 text-sm text-red-600">
+                                        User not registered. Try inviting them instead!
+                                    </p>
+                                )}
+                                {mode === 'invite' && (
+                                    <p className="mt-2 text-sm text-slate-500">
+                                        We'll send them an invitation link to join Birthday Buddy.
+                                    </p>
+                                )}
                             </div>
+
+                            {mode === 'share' && (
+                                <div>
+                                    <label className="block text-sm font-medium text-slate-700 mb-1">
+                                        Message (Optional)
+                                    </label>
+                                    <textarea
+                                        value={shareMessage}
+                                        onChange={(e) => setShareMessage(e.target.value)}
+                                        placeholder="Add a personal message..."
+                                        className="w-full px-4 py-3 rounded-lg border border-slate-200 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-200 outline-none transition-all text-gray-900"
+                                        rows={3}
+                                    />
+                                </div>
+                            )}
 
                             <div className="bg-indigo-50 border border-indigo-100 rounded-xl p-4">
                                 <h3 className="font-semibold text-indigo-900 mb-1">Share Contacts?</h3>
                                 <p className="text-sm text-indigo-800 mb-4">
-                                    You can pick birthdays to share with them (like family members or mutual friends) to help them get started.
+                                    {mode === 'invite'
+                                        ? 'You can pick birthdays to share with them (like family members or mutual friends) to help them get started.'
+                                        : 'Select which birthday contacts you want to share with this user.'}
                                 </p>
                                 <button
                                     onClick={() => setStep('select')}
@@ -143,11 +235,10 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                                     placeholder="Search contacts..."
                                     value={searchQuery}
                                     onChange={(e) => setSearchQuery(e.target.value)}
-                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:border-indigo-500 outline-none"
+                                    className="w-full pl-10 pr-4 py-2 rounded-lg border border-slate-200 focus:border-indigo-500 outline-none text-gray-900"
                                 />
                             </div>
 
-                            {/* Category Filter */}
                             <div className="flex gap-2 overflow-x-auto pb-2 mb-2 no-scrollbar">
                                 {categories.map(cat => (
                                     <button
@@ -217,8 +308,8 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                 {/* Footer */}
                 <div className="p-6 border-t border-gray-100 flex-shrink-0">
                     <button
-                        onClick={handleInvite}
-                        disabled={!friendEmail || isSubmitting}
+                        onClick={handleSubmit}
+                        disabled={!friendEmail || isSubmitting || (mode === 'share' && userExistsStatus === 'not-exists')}
                         className="w-full flex items-center justify-center gap-2 bg-indigo-600 text-white py-3 rounded-xl font-semibold hover:bg-indigo-700 active:scale-[0.98] transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg shadow-indigo-200"
                     >
                         {isSubmitting ? (
@@ -226,7 +317,7 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                         ) : (
                             <>
                                 <Send size={18} />
-                                {step === 'details' ? 'Send Invitation' : 'Save Selection'}
+                                {mode === 'invite' ? 'Send Invitation' : 'Share Contacts'}
                             </>
                         )}
                     </button>

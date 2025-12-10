@@ -20,8 +20,10 @@ model User {
   wantsEmailNotifications Boolean @default(true)
   accounts      Account[]
   sessions      Session[]
-  contacts      Contact[]
-  invitations   Invitation[]
+  contacts       Contact[]
+  invitations    Invitation[]
+  sentShares     ContactShare[] @relation("SentShares")
+  receivedShares ContactShare[] @relation("ReceivedShares")
 }
 
 model AppSettings {
@@ -101,4 +103,18 @@ model Invitation {
   status           String   @default("PENDING") // PENDING, ACCEPTED, EXPIRED
   createdAt        DateTime @default(now())
   expiresAt        DateTime
+}
+
+model ContactShare {
+  id               String   @id @default(cuid())
+  senderId         String
+  sender           User     @relation("SentShares", fields: [senderId], references: [id], onDelete: Cascade)
+  recipientId      String
+  recipient        User     @relation("ReceivedShares", fields: [recipientId], references: [id], onDelete: Cascade)
+  sharedContactIds String[]
+  status           String   @default("PENDING") // PENDING, ACCEPTED, REJECTED
+  message          String?  // Optional message from sender
+  createdAt        DateTime @default(now())
+  
+  @@index([recipientId, status])
 }
