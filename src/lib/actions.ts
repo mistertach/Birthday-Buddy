@@ -79,12 +79,24 @@ export async function registerUser(
 
     // Sign in automatically
     const callbackUrl = formData.get('callbackUrl') as string;
-    await signIn('credentials', {
-        email,
-        password,
-        redirect: true,
-        redirectTo: callbackUrl || '/dashboard',
-    });
+
+    try {
+        await signIn('credentials', {
+            email,
+            password,
+            redirect: true,
+            redirectTo: callbackUrl || '/dashboard',
+        });
+    } catch (error) {
+        // NextAuth throws NEXT_REDIRECT when redirecting, which is expected
+        // Re-throw it so Next.js can handle the redirect
+        if (error && typeof error === 'object' && 'digest' in error) {
+            throw error;
+        }
+        // For other errors, log and return error
+        console.error('Sign in error after registration:', error);
+        return { error: 'Registration successful but sign in failed. Please log in manually.' };
+    }
 
     return { success: true };
 }
