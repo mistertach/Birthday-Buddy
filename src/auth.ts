@@ -40,6 +40,12 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             },
         }),
         Email({
+            server: {
+                host: 'localhost',
+                port: 25,
+                secure: false,
+            },
+            from: 'noreply@birthdaybuddy.app',
             sendVerificationRequest: async ({ identifier: email, url }) => {
                 await sendMagicLinkEmail(email, url);
             },
