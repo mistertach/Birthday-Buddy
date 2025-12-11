@@ -1,11 +1,12 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
-// import Email from 'next-auth/providers/email';
+import Email from 'next-auth/providers/email';
 import { authConfig } from './auth.config';
 import { prisma } from '@/lib/prisma';
+import { PrismaAdapter } from '@auth/prisma-adapter';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
-// import { sendMagicLinkEmail } from '@/lib/email-actions';
+import { sendMagicLinkEmail } from '@/lib/email-actions';
 
 async function getUser(email: string) {
     try {
@@ -19,6 +20,8 @@ async function getUser(email: string) {
 
 export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
+    adapter: PrismaAdapter(prisma),
+    session: { strategy: 'jwt' }, // Use JWT to avoid database sessions for Credentials
     providers: [
         Credentials({
             async authorize(credentials) {
@@ -39,17 +42,16 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
                 return null;
             },
         }),
-        // Temporarily disabled until email settings are configured
-        // Email({
-        //     server: {
-        //         host: 'localhost',
-        //         port: 25,
-        //         secure: false,
-        //     },
-        //     from: 'noreply@birthdaybuddy.app',
-        //     sendVerificationRequest: async ({ identifier: email, url }) => {
-        //         await sendMagicLinkEmail(email, url);
-        //     },
-        // }),
+        Email({
+            server: {
+                host: 'localhost',
+                port: 25,
+                secure: false,
+            },
+            from: 'noreply@birthdaybuddy.app',
+            sendVerificationRequest: async ({ identifier: email, url }) => {
+                await sendMagicLinkEmail(email, url);
+            },
+        }),
     ],
 });
