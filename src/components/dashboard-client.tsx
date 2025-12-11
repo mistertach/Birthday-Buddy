@@ -509,6 +509,12 @@ export default function DashboardClient({
                 />
             )}
 
+            {/* Share Accept Modal */}
+            <AcceptShareModal
+                isOpen={showShareModal}
+                onClose={() => setShowShareModal(false)}
+            />
+
             {/* Settings Modal */}
 
             {isSettingsOpen && (
