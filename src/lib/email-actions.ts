@@ -621,3 +621,39 @@ export async function sendContactShareEmail(
   }
 }
 
+export async function sendPasswordResetEmail(
+  toEmail: string,
+  resetLink: string
+): Promise<{ ok: boolean; message?: string }> {
+  const settings = await getSharedSettingsRecord();
+  if (!settings?.resendApiKey || !settings?.resendFromEmail) {
+    return { ok: false, message: 'Email settings are not configured.' };
+  }
+
+  try {
+    const resend = new Resend(settings.resendApiKey);
+
+    await resend.emails.send({
+      from: `Birthday Buddy <${settings.resendFromEmail}>`,
+      to: toEmail,
+      subject: 'Reset your Birthday Buddy password',
+      html: `
+        <div style="font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; color: #334155;">
+          <h2 style="color:#4f46e5;">🔐 Password Reset Request</h2>
+          <p>You requested to reset your password for Birthday Buddy.</p>
+          <p style="margin: 16px 0;">Click the button below to reset your password. This link will expire in <strong>1 hour</strong>.</p>
+          <p>
+            <a href="${resetLink}" style="display:inline-block; background-color:#4f46e5; color:white; padding:12px 24px; border-radius:6px; text-decoration:none; font-weight:bold;">Reset Password</a>
+          </p>
+          <p style="margin-top:24px; font-size:12px; color:#64748b;">If you didn't request this, you can safely ignore this email.</p>
+          <p style="font-size:12px; color:#64748b;">For security, this link will only work once.</p>
+        </div>
+      `,
+    });
+
+    return { ok: true };
+  } catch (error: any) {
+    console.error('Failed to send password reset email:', error);
+    return { ok: false, message: error?.message ?? 'Failed to send password reset email.' };
+  }
+}

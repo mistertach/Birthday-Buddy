@@ -51,6 +51,11 @@ export default function LoginForm() {
                                 minLength={6}
                             />
                         </div>
+                        <div className="text-right mt-2">
+                            <a href="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-800">
+                                Forgot password?
+                            </a>
+                        </div>
                     </div>
                 </div>
                 <LoginButton />
