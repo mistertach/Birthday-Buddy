@@ -363,7 +363,7 @@ export default function DashboardClient({
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors"
                     >
                         <UserPlus size={16} />
-                        Invite Friend
+                        Share Birthdays
                     </button>
 
                     <button
