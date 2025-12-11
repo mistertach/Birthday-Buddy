@@ -1,9 +1,11 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
+import Email from 'next-auth/providers/email';
 import { authConfig } from './auth.config';
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import bcrypt from 'bcryptjs';
+import { sendMagicLinkEmail } from '@/lib/email-actions';
 
 async function getUser(email: string) {
     try {
@@ -35,6 +37,11 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
 
                 console.log('Invalid credentials');
                 return null;
+            },
+        }),
+        Email({
+            sendVerificationRequest: async ({ identifier: email, url }) => {
+                await sendMagicLinkEmail(email, url);
             },
         }),
     ],

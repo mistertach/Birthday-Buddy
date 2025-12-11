@@ -76,6 +76,32 @@ export default function LoginForm() {
                         </a>
                     </p>
                 </div>
+
+                <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center text-sm">
+                        <span className="px-2 bg-gray-50 text-gray-500">Or</span>
+                    </div>
+                </div>
+
+                <form action="/api/auth/signin/email" method="POST" className="mt-4">
+                    <input type="hidden" name="csrfToken" value="" />
+                    <input
+                        type="email"
+                        name="email"
+                        placeholder="Enter your email"
+                        required
+                        className="w-full px-4 py-2 rounded-md border border-gray-200 text-sm outline-2 placeholder:text-gray-500 text-gray-900 mb-3"
+                    />
+                    <button
+                        type="submit"
+                        className="w-full bg-white border border-indigo-600 text-indigo-600 py-2 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
+                    >
+                        Email me a login link
+                    </button>
+                </form>
             </div>
         </form>
     );
