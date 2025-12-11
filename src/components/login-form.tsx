@@ -77,7 +77,8 @@ export default function LoginForm() {
                     </p>
                 </div>
 
-                <div className="relative my-6">
+                {/* Magic link temporarily disabled until email settings are configured */}
+                {/* <div className="relative my-6">
                     <div className="absolute inset-0 flex items-center">
                         <div className="w-full border-t border-gray-300"></div>
                     </div>
@@ -101,7 +102,7 @@ export default function LoginForm() {
                     >
                         Email me a login link
                     </button>
-                </form>
+                </form> */}
             </div>
         </form>
     );
