@@ -2,11 +2,12 @@
 
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
-import { authenticate } from '@/lib/actions';
+import { authenticate, signInWithMagicLink } from '@/lib/actions';
 import { Loader2 } from 'lucide-react';
 
 export default function LoginForm() {
     const [errorMessage, dispatch] = useActionState(authenticate, undefined);
+    const [magicLinkState, magicLinkDispatch] = useActionState(signInWithMagicLink, undefined);
 
     return (
         <div className="space-y-3">
@@ -90,8 +91,7 @@ export default function LoginForm() {
                     </div>
                 </div>
 
-                <form action="/api/auth/signin/email" method="POST" className="mt-4">
-                    <input type="hidden" name="csrfToken" value="" />
+                <form action={magicLinkDispatch} className="mt-4">
                     <input
                         type="email"
                         name="email"
@@ -99,15 +99,38 @@ export default function LoginForm() {
                         required
                         className="w-full px-4 py-2 rounded-md border border-gray-200 text-sm outline-2 placeholder:text-gray-500 text-gray-900 mb-3"
                     />
-                    <button
-                        type="submit"
-                        className="w-full bg-white border border-indigo-600 text-indigo-600 py-2 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm"
-                    >
-                        Email me a login link
-                    </button>
+                    <MagicLinkButton />
+                    {magicLinkState && (
+                        <div className="mt-2 text-sm text-center">
+                            {/* If it's a string, it's an error. If we returned success object, we could check that.
+                                 Currently logic only returns string on error.
+                                 Let's assume if it returns nothing/undefined, it worked?
+                                 Wait, server action returns Promise<void> if success?
+                                 Ah, signIn(redirect:false) returns a Promise.
+                                 I need to handle success state in the action more explicitly.
+                             */}
+                            <p className={magicLinkState.includes('sent') ? "text-green-600" : "text-red-500"}>
+                                {magicLinkState}
+                            </p>
+                        </div>
+                    )}
                 </form>
             </div>
         </div>
+    );
+}
+
+function MagicLinkButton() {
+    const { pending } = useFormStatus();
+
+    return (
+        <button
+            type="submit"
+            disabled={pending}
+            className="w-full bg-white border border-indigo-600 text-indigo-600 py-2 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm disabled:opacity-50"
+        >
+            {pending ? 'Sending...' : 'Email me a login link'}
+        </button>
     );
 }
 

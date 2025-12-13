@@ -7,6 +7,30 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import { revalidatePath } from 'next/cache';
 
+
+export async function signInWithMagicLink(
+    prevState: string | undefined,
+    formData: FormData,
+) {
+    try {
+        await signIn('email', {
+            email: formData.get('email'),
+            redirect: false, // We'll handle the UI feedback manually or let NextAuth redirect if we want
+            // Actually, setting redirect: false returns the response, preventing the specific error page.
+            // But usually we WANT the redirect to the verify-request page.
+            // Let's set redirect: true (default) but wrap in try/catch for the "NEXT_REDIRECT" error.
+        });
+        // Note: signIn usually throws a NEXT_REDIRECT, so this line might not be reached.
+        return 'Magic link sent! Check your email.';
+    } catch (error) {
+        if (error instanceof AuthError) {
+            return 'Could not send magic link. Please check your email.';
+        }
+        // Rethrow the redirect signal
+        throw error;
+    }
+}
+
 export async function authenticate(
     prevState: string | undefined,
     formData: FormData,
