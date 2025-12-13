@@ -9,13 +9,12 @@ export default function LoginForm() {
     const [errorMessage, dispatch] = useActionState(authenticate, undefined);
 
     return (
-    return (
         <div className="space-y-3">
             <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
                 <h1 className="mb-3 text-2xl font-bold text-gray-900">
                     Please log in to continue.
                 </h1>
-                
+
                 <form action={dispatch}>
                     <div className="w-full">
                         <div>
@@ -109,7 +108,6 @@ export default function LoginForm() {
                 </form>
             </div>
         </div>
-    );
     );
 }
 
