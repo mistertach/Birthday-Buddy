@@ -43,14 +43,15 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
             },
         }),
         Email({
-            server: {
-                host: 'localhost',
-                port: 25,
-                secure: false,
-            },
-            from: 'noreply@birthdaybuddy.app',
             sendVerificationRequest: async ({ identifier: email, url }) => {
-                await sendMagicLinkEmail(email, url);
+                console.log(`[Auth] Attempting to send magic link to ${email}`);
+                try {
+                    await sendMagicLinkEmail(email, url);
+                    console.log(`[Auth] Magic link sent successfully to ${email}`);
+                } catch (error) {
+                    console.error('[Auth] Failed to send magic link:', error);
+                    throw error;
+                }
             },
         }),
     ],

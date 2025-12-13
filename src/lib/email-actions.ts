@@ -662,18 +662,22 @@ export async function sendMagicLinkEmail(
   toEmail: string,
   loginLink: string
 ): Promise<void> {
+  console.log(`[Email] sendMagicLinkEmail called for ${toEmail}`);
   try {
     const settings = await getSharedSettingsRecord();
+    console.log('[Email] Settings retrieved:', settings ? 'Found' : 'Null');
 
     if (!settings?.resendApiKey || !settings?.resendFromEmail) {
-      console.error('Email settings not configured for magic link');
+      console.error('[Email] Settings missing API key or From Email');
       throw new Error('Email settings are not configured. Please configure email settings in the admin panel.');
     }
 
     const resend = new Resend(settings.resendApiKey);
+    const fromAddress = `Birthday Buddy <${settings.resendFromEmail}>`;
+    console.log(`[Email] Sending via Resend from ${fromAddress}`);
 
     const result = await resend.emails.send({
-      from: `Birthday Buddy <${settings.resendFromEmail}>`,
+      from: fromAddress,
       to: toEmail,
       subject: 'Your Birthday Buddy login link',
       html: `
@@ -689,14 +693,14 @@ export async function sendMagicLinkEmail(
       `,
     });
 
-    console.log('Magic link email sent successfully:', result);
+    if (result.error) {
+      console.error('[Email] Resend API returned error:', result.error);
+      throw new Error(`Resend Error: ${result.error.message}`);
+    }
+
+    console.log('[Email] Resend success result:', result);
   } catch (error: any) {
-    console.error('Failed to send magic link email:', error);
-    console.error('Error details:', {
-      message: error?.message,
-      name: error?.name,
-      stack: error?.stack
-    });
+    console.error('[Email] EXCEPTION in sendMagicLinkEmail:', error);
     throw new Error(`Failed to send magic link email: ${error?.message || 'Unknown error'}`);
   }
 }
