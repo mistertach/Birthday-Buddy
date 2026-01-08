@@ -21,6 +21,7 @@ model User {
   accounts      Account[]
   sessions      Session[]
   contacts       Contact[]
+  events         PartyEvent[]
   invitations    Invitation[]
   sentShares     ContactShare[] @relation("SentShares")
   receivedShares ContactShare[] @relation("ReceivedShares")
@@ -92,6 +93,27 @@ model Contact {
   updatedAt      DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  events PartyEvent[]
+}
+
+model PartyEvent {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  contactId   String?
+  contact     Contact? @relation(fields: [contactId], references: [id])
+  name        String
+  date        DateTime
+  location    String?
+  giftStatus  String   @default("NONE") // NONE, IDEA, BOUGHT, WRAPPED
+  giftBudget  Float?
+  giftNotes   String?
+  rsvpStatus  String   @default("PENDING") // PENDING, GOING, NOT_GOING
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
+  @@index([contactId])
 }
 
 model Category {

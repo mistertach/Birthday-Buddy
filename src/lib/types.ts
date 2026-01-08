@@ -12,13 +12,29 @@ export interface Contact {
   day: number;
   month: number;
   year?: number; // undefined if unknown
-  
+
   phone?: string;
   relationship: string;
   reminderType: ReminderType;
   notes?: string;
   lastWishedYear?: number;
   parentId?: string;
+  events?: PartyEvent[];
+}
+
+export interface PartyEvent {
+  id: string;
+  userId: string;
+  contactId?: string | null;
+  name: string;
+  date: Date;
+  location?: string | null; // Allow null to match API return if needed
+  giftStatus: 'NONE' | 'IDEA' | 'BOUGHT' | 'WRAPPED';
+  giftBudget?: number | null;
+  giftNotes?: string | null;
+  rsvpStatus: 'PENDING' | 'GOING' | 'NOT_GOING';
+  createdAt?: Date;
+  updatedAt?: Date;
 }
 
 export interface StreakData {

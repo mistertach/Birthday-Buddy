@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useMemo, useEffect } from 'react';
-import { ReminderType, type Contact } from '@/lib/types';
+import { ReminderType, type Contact, type PartyEvent } from '@/lib/types';
 import { getCategoryDotColor, getVisualDate, getBirthdayStatus, getDaysUntil, getNextBirthdays } from '@/lib/utils';
 import confetti from 'canvas-confetti';
 import { AddEditContact } from '@/components/AddEditContact';
@@ -12,12 +12,16 @@ import { SettingsModal } from '@/components/SettingsModal';
 import { InviteModal } from '@/components/InviteModal';
 import PendingSharesNotification from '@/components/PendingSharesNotification';
 import AcceptShareModal from '@/components/AcceptShareModal';
+import { AddEditEvent } from '@/components/AddEditEvent';
+import { EventCard } from '@/components/EventCard';
 import {
     Plus,
     Check,
     Search,
     Calendar as CalendarIcon,
     List,
+    Gift,
+    PartyPopper,
     ChevronDown,
     ChevronRight,
     LogOut,
@@ -34,6 +38,7 @@ import { handleSignOut, updateNotificationPreference } from '@/lib/actions';
 
 interface DashboardClientProps {
     initialContacts: Contact[];
+    initialEvents: PartyEvent[];
     userName?: string | null;
     isAdmin?: boolean;
     initialCategories: string[];
@@ -57,6 +62,7 @@ const normalizeContact = (contact: any): Contact => ({
 
 export default function DashboardClient({
     initialContacts,
+    initialEvents,
     userName,
     isAdmin,
     initialCategories,
@@ -64,18 +70,29 @@ export default function DashboardClient({
     stats,
 }: DashboardClientProps) {
     const [contacts, setContacts] = useState<Contact[]>(() => initialContacts.map(normalizeContact));
-    const [view, setView] = useState<'list' | 'calendar'>('list');
+    const [events, setEvents] = useState<PartyEvent[]>(initialEvents);
+    const [view, setView] = useState<'list' | 'calendar' | 'gifts'>('list');
 
     const [isModalOpen, setIsModalOpen] = useState(false);
+    const [isEventModalOpen, setIsEventModalOpen] = useState(false);
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [showInviteModal, setShowInviteModal] = useState(false);
     const [showShareModal, setShowShareModal] = useState(false);
     const [wantsNotifications, setWantsNotifications] = useState(initialNotificationPref);
+
     const [editingContact, setEditingContact] = useState<Contact | undefined>(undefined);
+    const [editingEvent, setEditingEvent] = useState<PartyEvent | undefined>(undefined);
+
     const openNewContactModal = () => {
         setEditingContact(undefined);
         setIsModalOpen(true);
     };
+
+    const openNewEventModal = () => {
+        setEditingEvent(undefined);
+        setIsEventModalOpen(true);
+    };
+
     const [selectedContact, setSelectedContact] = useState<Contact | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
     const [isSearchOpen, setIsSearchOpen] = useState(false);
@@ -279,14 +296,27 @@ export default function DashboardClient({
         });
     }, [contacts, searchQuery, filterRel]);
 
-    const nextUpContacts = useMemo(() => {
-        // Filter out those that have already been wished this year
+    const nextUpItems = useMemo(() => {
+        // 1. Birthdays
         const unwished = contacts.filter(c => getBirthdayStatus(c) !== 'wished');
-        return getNextBirthdays(unwished, 3).filter(c => {
-            const days = getDaysUntil(c.day, c.month);
-            return days <= 7; // Only show next 7 days in "Next Up"
+        const upcomingBirthdays = getNextBirthdays(unwished, 5).filter(c => getDaysUntil(c.day, c.month) <= 14);
+
+        // 2. Events
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const upcomingEvents = events.filter(e => {
+            const d = new Date(e.date);
+            return d >= today && d <= new Date(today.getTime() + 14 * 24 * 60 * 60 * 1000);
         });
-    }, [contacts]);
+
+        // 3. Merge & Sort
+        const items = [
+            ...upcomingBirthdays.map(c => ({ type: 'birthday' as const, data: c, date: getVisualDate(c.day, c.month) })),
+            ...upcomingEvents.map(e => ({ type: 'event' as const, data: e, date: new Date(e.date) }))
+        ];
+
+        return items.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 10);
+    }, [contacts, events]);
 
     const renderListWithSeparators = () => {
         const groups: React.ReactNode[] = [];
@@ -469,7 +499,7 @@ export default function DashboardClient({
                 {/* StatsCard removed - stats inlined in header/subheader if needed, or see below */}
 
                 {/* Next Up Section */}
-                {nextUpContacts.length > 0 && !searchQuery && filterRel === 'All' && (
+                {nextUpItems.length > 0 && !searchQuery && filterRel === 'All' && (
                     <div className="pt-2 animate-fade-in mb-2">
                         <div className="flex items-center justify-between mb-3 px-1">
                             <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
@@ -477,60 +507,90 @@ export default function DashboardClient({
                                 Next Up
                             </h2>
                             <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
-                                This Week
+                                Coming Up
                             </span>
                         </div>
                         <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 mask-gradient-right">
-                            {nextUpContacts.map(contact => {
-                                const days = getDaysUntil(contact.day, contact.month);
-                                const status = getBirthdayStatus(contact);
-                                const isToday = status === 'today';
-                                const isWished = status === 'wished';
+                            {nextUpItems.map((item, i) => {
+                                if (item.type === 'birthday') {
+                                    const contact = item.data as Contact;
+                                    const days = getDaysUntil(contact.day, contact.month);
+                                    const status = getBirthdayStatus(contact);
+                                    const isToday = status === 'today';
+                                    const isWished = status === 'wished';
 
-                                return (
-                                    <div
-                                        key={`next-${contact.id}`}
-                                        className="flex-shrink-0 w-[180px] p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group relative overflow-hidden"
-                                        onClick={() => setSelectedContact(contact)}
-                                    >
-                                        {/* Highlight Accent */}
-                                        <div className={`absolute top-0 left-0 w-1 h-full ${isToday ? 'bg-rose-500' : 'bg-indigo-500'}`}></div>
-
-                                        <div className="flex flex-col gap-2">
-                                            <div className="flex justify-between items-start">
-                                                <div className="flex flex-col min-w-0">
-                                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">
-                                                        {new Date(2000, contact.month - 1, contact.day).toLocaleString('default', { month: 'short' })} {contact.day}
-                                                    </span>
-                                                    <h3 className="font-bold text-slate-900 truncate pr-1 text-sm">{contact.name}</h3>
+                                    return (
+                                        <div
+                                            key={`next-bd-${contact.id}`}
+                                            className="flex-shrink-0 w-[180px] p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group relative overflow-hidden"
+                                            onClick={() => setSelectedContact(contact)}
+                                        >
+                                            <div className={`absolute top-0 left-0 w-1 h-full ${isToday ? 'bg-rose-500' : 'bg-indigo-500'}`}></div>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">
+                                                            {new Date(2000, contact.month - 1, contact.day).toLocaleString('default', { month: 'short' })} {contact.day}
+                                                        </span>
+                                                        <h3 className="font-bold text-slate-900 truncate pr-1 text-sm">{contact.name}</h3>
+                                                    </div>
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (isToday) {
+                                                                handleWish(contact.id, !isWished);
+                                                            } else {
+                                                                setSelectedContact(contact);
+                                                            }
+                                                        }}
+                                                        className={`p-1.5 rounded-lg transition-colors ${isToday
+                                                            ? isWished ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                                                            : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
+                                                            }`}
+                                                    >
+                                                        {isToday ? <Check size={14} strokeWidth={3} /> : <Plus size={14} />}
+                                                    </button>
                                                 </div>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        if (isToday) {
-                                                            handleWish(contact.id, !isWished);
-                                                        } else {
-                                                            setSelectedContact(contact);
-                                                        }
-                                                    }}
-                                                    className={`p-1.5 rounded-lg transition-colors ${isToday
-                                                        ? isWished ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
-                                                        : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
-                                                        }`}
-                                                >
-                                                    {isToday ? <Check size={14} strokeWidth={3} /> : <Plus size={14} />}
-                                                </button>
-                                            </div>
-
-                                            <div className="flex items-center justify-between mt-1">
-                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-700'}`}>
-                                                    {isToday ? 'TODAY!' : days === 1 ? 'Tomorrow' : `In ${days} days`}
-                                                </span>
-                                                <div className={`w-1.5 h-1.5 rounded-full ${getCategoryDotColor(contact.relationship)}`}></div>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                                        {isToday ? 'TODAY!' : days === 1 ? 'Tomorrow' : `In ${days} days`}
+                                                    </span>
+                                                    <div className={`w-1.5 h-1.5 rounded-full ${getCategoryDotColor(contact.relationship)}`}></div>
+                                                </div>
                                             </div>
                                         </div>
-                                    </div>
-                                );
+                                    );
+                                } else {
+                                    const event = item.data as PartyEvent;
+                                    const d = new Date(event.date);
+                                    const isToday = d.toDateString() === new Date().toDateString();
+
+                                    return (
+                                        <div
+                                            key={`next-evt-${event.id}`}
+                                            onClick={() => { setEditingEvent(event); setIsEventModalOpen(true); }}
+                                            className="flex-shrink-0 w-[180px] p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-purple-100 transition-all cursor-pointer group relative overflow-hidden"
+                                        >
+                                            <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
+                                            <div className="flex flex-col gap-2">
+                                                <div className="flex justify-between items-start">
+                                                    <div className="flex flex-col min-w-0">
+                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
+                                                            <PartyPopper size={10} />
+                                                            {d.toLocaleDateString([], { month: 'short', day: 'numeric' })}
+                                                        </span>
+                                                        <h3 className="font-bold text-slate-900 truncate pr-1 text-sm">{event.name}</h3>
+                                                    </div>
+                                                </div>
+                                                <div className="flex items-center justify-between mt-1">
+                                                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-purple-50 text-purple-700">
+                                                        {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                }
                             })}
                         </div>
                     </div>
@@ -592,7 +652,7 @@ export default function DashboardClient({
                     <div className="animate-fade-in">
                         {renderListWithSeparators()}
                     </div>
-                ) : (
+                ) : view === 'calendar' ? (
                     <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-200 text-center animate-fade-in">
                         <CalendarIcon size={48} className="mx-auto text-slate-200 mb-4" />
                         <h3 className="text-lg font-bold text-slate-800">Calendar View</h3>
@@ -635,15 +695,58 @@ export default function DashboardClient({
                             })}
                         </div>
                     </div>
+                ) : (
+                    <div className="animate-fade-in space-y-4">
+                        <div className="flex items-center justify-between mb-2">
+                            <h2 className="text-lg font-bold text-slate-900">Events & Gifts</h2>
+                            <button onClick={openNewEventModal} className="text-indigo-600 font-bold text-sm">
+                                + New Event
+                            </button>
+                        </div>
+                        {events.length === 0 ? (
+                            <div className="text-center py-12 bg-white rounded-3xl border border-dashed border-slate-200">
+                                <Gift className="mx-auto text-slate-300 mb-2" size={32} />
+                                <p className="text-slate-400">No upcoming events planned.</p>
+                            </div>
+                        ) : (
+                            events.map(event => (
+                                <EventCard
+                                    key={event.id}
+                                    event={event}
+                                    onEdit={(e) => { setEditingEvent(e); setIsEventModalOpen(true); }}
+                                />
+                            ))
+                        )}
+                    </div>
                 )}
             </main>
 
-            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-none z-20">
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-none z-20 group">
+                <div className="absolute right-6 bottom-16 flex flex-col gap-3 transition-all duration-300 opacity-0 translate-y-4 group-hover:opacity-100 group-hover:translate-y-0 pointer-events-auto">
+                    <button
+                        onClick={openNewEventModal}
+                        className="flex items-center justify-end gap-3"
+                    >
+                        <span className="bg-white px-3 py-1 rounded-lg shadow-sm text-xs font-bold text-slate-600">Events / Party</span>
+                        <div className="w-10 h-10 bg-purple-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
+                            <PartyPopper size={18} />
+                        </div>
+                    </button>
+                    <button
+                        onClick={openNewContactModal}
+                        className="flex items-center justify-end gap-3"
+                    >
+                        <span className="bg-white px-3 py-1 rounded-lg shadow-sm text-xs font-bold text-slate-600">New Buddy</span>
+                        <div className="w-10 h-10 bg-indigo-600 text-white rounded-full shadow-lg flex items-center justify-center hover:scale-110 transition-transform">
+                            <UserPlus size={18} />
+                        </div>
+                    </button>
+                </div>
+
                 <button
-                    onClick={openNewContactModal}
-                    className="absolute right-6 bottom-0 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300 flex items-center justify-center hover:scale-105 active:scale-95 transition-all pointer-events-auto"
+                    className="absolute right-6 bottom-0 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300 flex items-center justify-center hover:scale-105 active:scale-95 transition-all pointer-events-auto z-20"
                 >
-                    <Plus size={28} strokeWidth={2.5} />
+                    <Plus size={28} strokeWidth={2.5} className="group-hover:rotate-45 transition-transform duration-300" />
                 </button>
             </div>
 
@@ -656,6 +759,18 @@ export default function DashboardClient({
                     }}
                     initialData={editingContact}
                     categories={categories}
+                    contacts={contacts}
+                />
+            )}
+
+            {isEventModalOpen && (
+                <AddEditEvent
+                    onClose={() => {
+                        setIsEventModalOpen(false);
+                        setEditingEvent(undefined);
+                    }}
+                    onSave={() => window.location.reload()} // For now, simple reload to fetch fresh events
+                    initialData={editingEvent}
                     contacts={contacts}
                 />
             )}
@@ -674,6 +789,13 @@ export default function DashboardClient({
                 >
                     <CalendarIcon size={24} />
                     <span className="text-[10px] font-medium">Calendar</span>
+                </button>
+                <button
+                    onClick={() => setView('gifts')}
+                    className={`flex flex-col items-center gap-1 ${view === 'gifts' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
+                >
+                    <Gift size={24} />
+                    <span className="text-[10px] font-medium">Gifts</span>
                 </button>
             </nav>
 
