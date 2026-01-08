@@ -14,7 +14,10 @@ export async function createEvent(data: {
     giftNotes?: string;
 }) {
     const session = await auth();
+    console.log('[createEvent] Full Session Object:', JSON.stringify(session, null, 2));
+
     if (!session?.user?.email) {
+        console.error('[createEvent] No session email. Auth check failed.');
         throw new Error('Not authenticated');
     }
 
