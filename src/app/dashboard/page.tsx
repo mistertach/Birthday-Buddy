@@ -41,6 +41,10 @@ export default async function DashboardPage() {
     const { getGlobalCategories } = await import('@/lib/contact-actions');
     const categories = await getGlobalCategories();
 
+    // Fetch gamification stats
+    const streak = rawUser?.streak ?? 0;
+    const wishesDelivered = rawUser?.wishesDelivered ?? 0;
+
     return (
         <DashboardClient
             initialContacts={normalizedContacts}
@@ -48,6 +52,7 @@ export default async function DashboardPage() {
             isAdmin={isAdmin}
             initialCategories={categories}
             initialNotificationPref={notificationPref}
+            stats={{ streak, wishesDelivered }}
         />
     );
 }

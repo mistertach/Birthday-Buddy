@@ -1,0 +1,4 @@
+-- AlterTable
+ALTER TABLE "User" ADD COLUMN     "lastWishDate" TIMESTAMP(3),
+ADD COLUMN     "streak" INTEGER NOT NULL DEFAULT 0,
+ADD COLUMN     "wishesDelivered" INTEGER NOT NULL DEFAULT 0;

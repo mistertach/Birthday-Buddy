@@ -102,14 +102,57 @@ export async function deleteContact(id: string) {
 }
 
 export async function markAsWished(id: string, wished: boolean) {
+    const session = await auth();
+    if (!session?.user?.email) {
+        throw new Error('Unauthorized');
+    }
+
     const currentYear = new Date().getFullYear();
 
+    // First update the contact
     await prisma.contact.update({
         where: { id },
         data: {
             lastWishedYear: wished ? currentYear : null,
         },
     });
+
+    if (wished) {
+        const user = await prisma.user.findUnique({
+            where: { email: session.user.email },
+        });
+
+        if (user) {
+            const now = new Date();
+            const lastWish = user.lastWishDate;
+            let newStreak = user.streak;
+
+            // Simple streak logic:
+            // If last wish was within 30 days, increment streak
+            // Else, reset to 1
+            if (lastWish) {
+                const diffTime = Math.abs(now.getTime() - lastWish.getTime());
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+                if (diffDays <= 30) {
+                    newStreak += 1;
+                } else {
+                    newStreak = 1;
+                }
+            } else {
+                newStreak = 1;
+            }
+
+            await prisma.user.update({
+                where: { email: session.user.email },
+                data: {
+                    wishesDelivered: { increment: 1 },
+                    lastWishDate: now,
+                    streak: newStreak
+                }
+            });
+        }
+    }
 
     revalidatePath('/dashboard');
 }

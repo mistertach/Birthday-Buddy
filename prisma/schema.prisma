@@ -25,6 +25,11 @@ model User {
   sentShares     ContactShare[] @relation("SentShares")
   receivedShares ContactShare[] @relation("ReceivedShares")
   passwordResetTokens PasswordResetToken[]
+
+  // Gamification
+  wishesDelivered Int      @default(0)
+  streak          Int      @default(0)
+  lastWishDate    DateTime?
 }
 
 model AppSettings {

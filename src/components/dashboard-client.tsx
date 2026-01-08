@@ -2,7 +2,8 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { ReminderType, type Contact } from '@/lib/types';
-import { getCategoryDotColor, getVisualDate, getBirthdayStatus } from '@/lib/utils';
+import { getCategoryDotColor, getVisualDate, getBirthdayStatus, getDaysUntil, getNextBirthdays } from '@/lib/utils';
+import confetti from 'canvas-confetti';
 import { AddEditContact } from '@/components/AddEditContact';
 import { ContactCard } from '@/components/ContactCard';
 import { ContactDetailModal } from '@/components/ContactDetailModal';
@@ -13,6 +14,7 @@ import PendingSharesNotification from '@/components/PendingSharesNotification';
 import AcceptShareModal from '@/components/AcceptShareModal';
 import {
     Plus,
+    Check,
     Search,
     Calendar as CalendarIcon,
     List,
@@ -20,9 +22,12 @@ import {
     ChevronRight,
     LogOut,
     Settings,
-
     Shield,
-    UserPlus
+    UserPlus,
+    X,
+    Trophy,
+    Flame,
+    Sparkles
 } from 'lucide-react';
 import { createContact, createContacts, updateContact, deleteContact, markAsWished } from '@/lib/contact-actions';
 import { handleSignOut, updateNotificationPreference } from '@/lib/actions';
@@ -33,6 +38,10 @@ interface DashboardClientProps {
     isAdmin?: boolean;
     initialCategories: string[];
     initialNotificationPref: boolean;
+    stats: {
+        streak: number;
+        wishesDelivered: number;
+    };
 }
 
 const normalizeContact = (contact: any): Contact => ({
@@ -52,6 +61,7 @@ export default function DashboardClient({
     isAdmin,
     initialCategories,
     initialNotificationPref,
+    stats,
 }: DashboardClientProps) {
     const [contacts, setContacts] = useState<Contact[]>(() => initialContacts.map(normalizeContact));
     const [view, setView] = useState<'list' | 'calendar'>('list');
@@ -68,6 +78,7 @@ export default function DashboardClient({
     };
     const [selectedContact, setSelectedContact] = useState<Contact | undefined>(undefined);
     const [searchQuery, setSearchQuery] = useState('');
+    const [isSearchOpen, setIsSearchOpen] = useState(false);
     const [filterRel, setFilterRel] = useState<string>('All');
 
 
@@ -128,6 +139,14 @@ export default function DashboardClient({
                     ? { ...c, lastWishedYear: shouldMark ? currentYear : undefined }
                     : c
             ));
+            if (shouldMark) {
+                confetti({
+                    particleCount: 150,
+                    spread: 70,
+                    origin: { y: 0.6 },
+                    colors: ['#6366f1', '#a855f7', '#ec4899']
+                });
+            }
         } catch (error) {
             console.error('Failed to update wish status:', error);
         }
@@ -205,6 +224,31 @@ export default function DashboardClient({
         reader.readAsText(file);
     };
 
+    // Auto-celebrate today's birthdays on load
+    useEffect(() => {
+        const hasBirthdayToday = contacts.some(c => getBirthdayStatus(c) === 'today');
+        if (hasBirthdayToday) {
+            const duration = 3 * 1000;
+            const animationEnd = Date.now() + duration;
+            const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 0 };
+
+            const randomInRange = (min: number, max: number) => Math.random() * (max - min) + min;
+
+            const interval: any = setInterval(function () {
+                const timeLeft = animationEnd - Date.now();
+
+                if (timeLeft <= 0) {
+                    return clearInterval(interval);
+                }
+
+                const particleCount = 50 * (timeLeft / duration);
+                // since particles fall down, start a bit higher than average
+                confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.1, 0.3), y: Math.random() - 0.2 } });
+                confetti({ ...defaults, particleCount, origin: { x: randomInRange(0.7, 0.9), y: Math.random() - 0.2 } });
+            }, 250);
+        }
+    }, [contacts]);
+
     const handleToggleNotifications = async (enabled: boolean) => {
         try {
             const result = await updateNotificationPreference(enabled);
@@ -235,10 +279,27 @@ export default function DashboardClient({
         });
     }, [contacts, searchQuery, filterRel]);
 
+    const nextUpContacts = useMemo(() => {
+        // Filter out those that have already been wished this year
+        const unwished = contacts.filter(c => getBirthdayStatus(c) !== 'wished');
+        return getNextBirthdays(unwished, 3).filter(c => {
+            const days = getDaysUntil(c.day, c.month);
+            return days <= 7; // Only show next 7 days in "Next Up"
+        });
+    }, [contacts]);
+
     const renderListWithSeparators = () => {
         const groups: React.ReactNode[] = [];
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+
+        // Pre-calculate counts for each month in the current sorted list
+        const monthCounts: Record<string, number> = {};
+        sortedContacts.forEach(contact => {
+            const visualDate = getVisualDate(contact.day, contact.month);
+            const monthName = visualDate.toLocaleString('default', { month: 'long' });
+            monthCounts[monthName] = (monthCounts[monthName] || 0) + 1;
+        });
 
         let lastMonth = '';
         let currentGroupContacts: Contact[] = [];
@@ -261,7 +322,12 @@ export default function DashboardClient({
                         onClick={() => toggleMonth(monthName)}
                         className="sticky top-[138px] z-10 w-full flex items-center justify-between py-2.5 px-1 bg-slate-50/95 backdrop-blur-sm border-b border-slate-100 hover:bg-slate-100 transition-colors"
                     >
-                        <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{monthName}</h3>
+                        <div className="flex items-center gap-2">
+                            <h3 className="text-sm font-bold text-slate-500 uppercase tracking-widest">{monthName}</h3>
+                            <span className="px-2 py-0.5 bg-slate-100 text-slate-400 text-[10px] font-bold rounded-full border border-slate-200">
+                                {monthCounts[monthName]}
+                            </span>
+                        </div>
                         {isExpanded ? <ChevronDown size={16} className="text-slate-400" /> : <ChevronRight size={16} className="text-slate-400" />}
                     </button>
                 );
@@ -279,9 +345,21 @@ export default function DashboardClient({
 
         if (groups.length === 0) {
             return (
-                <div className="text-center py-10 bg-white rounded-2xl border border-dashed border-slate-200 mt-4">
-                    <p className="text-slate-400">No birthdays found.</p>
-                    <button onClick={openNewContactModal} className="text-indigo-600 font-semibold mt-2">Add one now</button>
+                <div className="text-center py-16 bg-white rounded-3xl border border-dashed border-slate-200 mt-4 animate-fade-in">
+                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Search className="text-slate-300" size={32} />
+                    </div>
+                    <h3 className="text-lg font-bold text-slate-900 mb-1">No buddies found</h3>
+                    <p className="text-slate-500 text-sm max-w-[200px] mx-auto mb-6">
+                        {searchQuery ? "Try a different search term or clear filters." : "Start by adding your first birthday buddy!"}
+                    </p>
+                    <button
+                        onClick={openNewContactModal}
+                        className="inline-flex items-center gap-2 px-6 py-2.5 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-100"
+                    >
+                        <Plus size={18} />
+                        Add Buddy
+                    </button>
                 </div>
             );
         }
@@ -317,7 +395,7 @@ export default function DashboardClient({
                             contact={contact}
                             parentContact={parent}
                             onWish={handleWish}
-                            onEdit={(c) => { setEditingContact(c); setIsModalOpen(true); }}
+                            onEdit={(c: Contact) => { setEditingContact(c); setIsModalOpen(true); }}
                             onDelete={(c) => handleDelete(c.id)}
                         />
                     );
@@ -340,12 +418,16 @@ export default function DashboardClient({
         <div className="min-h-screen bg-slate-50 pb-20 max-w-xl mx-auto shadow-2xl shadow-slate-200 border-x border-slate-100 relative">
             <header className="sticky top-0 z-30 bg-white/90 backdrop-blur-md border-b border-slate-100 px-6 py-4 flex justify-between items-center">
                 <div>
-                    <h1 className="text-2xl font-bold text-slate-900 tracking-tight">
-                        Birthday Buddy <span className="text-indigo-500">(BB)</span>
+                    <h1 className="text-xl font-bold text-slate-900 tracking-tight">
+                        Birthday Buddy
                     </h1>
-                    <p className="text-xs text-slate-500 font-medium">
-                        Welcome, {userName || 'Friend'}
-                    </p>
+                    <div className="flex items-center gap-3 text-[10px] sm:text-xs font-medium text-slate-500 mt-0.5">
+                        <span>{userName || 'Friend'}</span>
+                        <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                        <span className="flex items-center gap-1 text-orange-500"><Flame size={12} fill="currentColor" /> {stats.streak}</span>
+                        <span className="w-1 h-1 bg-slate-300 rounded-full"></span>
+                        <span className="flex items-center gap-1 text-yellow-500"><Trophy size={12} fill="currentColor" /> {stats.wishesDelivered}</span>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {isAdmin && (
@@ -384,35 +466,127 @@ export default function DashboardClient({
             </header>
 
             <main className="p-4 space-y-4">
-                <div className="flex flex-col gap-3 sticky top-[73px] z-20 bg-slate-50 pb-2">
-                    <div className="relative">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-                        <input
-                            type="text"
-                            placeholder="Find someone..."
-                            value={searchQuery}
-                            onChange={(e) => setSearchQuery(e.target.value)}
-                            className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none shadow-sm"
-                        />
+                {/* StatsCard removed - stats inlined in header/subheader if needed, or see below */}
+
+                {/* Next Up Section */}
+                {nextUpContacts.length > 0 && !searchQuery && filterRel === 'All' && (
+                    <div className="pt-2 animate-fade-in mb-2">
+                        <div className="flex items-center justify-between mb-3 px-1">
+                            <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                                <Sparkles size={16} className="text-indigo-500" />
+                                Next Up
+                            </h2>
+                            <span className="text-[10px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                This Week
+                            </span>
+                        </div>
+                        <div className="flex gap-3 overflow-x-auto no-scrollbar pb-2 mask-gradient-right">
+                            {nextUpContacts.map(contact => {
+                                const days = getDaysUntil(contact.day, contact.month);
+                                const status = getBirthdayStatus(contact);
+                                const isToday = status === 'today';
+                                const isWished = status === 'wished';
+
+                                return (
+                                    <div
+                                        key={`next-${contact.id}`}
+                                        className="flex-shrink-0 w-[180px] p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-indigo-100 transition-all cursor-pointer group relative overflow-hidden"
+                                        onClick={() => setSelectedContact(contact)}
+                                    >
+                                        {/* Highlight Accent */}
+                                        <div className={`absolute top-0 left-0 w-1 h-full ${isToday ? 'bg-rose-500' : 'bg-indigo-500'}`}></div>
+
+                                        <div className="flex flex-col gap-2">
+                                            <div className="flex justify-between items-start">
+                                                <div className="flex flex-col min-w-0">
+                                                    <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter">
+                                                        {new Date(2000, contact.month - 1, contact.day).toLocaleString('default', { month: 'short' })} {contact.day}
+                                                    </span>
+                                                    <h3 className="font-bold text-slate-900 truncate pr-1 text-sm">{contact.name}</h3>
+                                                </div>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        if (isToday) {
+                                                            handleWish(contact.id, !isWished);
+                                                        } else {
+                                                            setSelectedContact(contact);
+                                                        }
+                                                    }}
+                                                    className={`p-1.5 rounded-lg transition-colors ${isToday
+                                                        ? isWished ? 'bg-green-100 text-green-600' : 'bg-rose-50 text-rose-600 hover:bg-rose-100'
+                                                        : 'bg-slate-50 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
+                                                        }`}
+                                                >
+                                                    {isToday ? <Check size={14} strokeWidth={3} /> : <Plus size={14} />}
+                                                </button>
+                                            </div>
+
+                                            <div className="flex items-center justify-between mt-1">
+                                                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${isToday ? 'bg-rose-100 text-rose-700' : 'bg-indigo-50 text-indigo-700'}`}>
+                                                    {isToday ? 'TODAY!' : days === 1 ? 'Tomorrow' : `In ${days} days`}
+                                                </span>
+                                                <div className={`w-1.5 h-1.5 rounded-full ${getCategoryDotColor(contact.relationship)}`}></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                        </div>
                     </div>
-                    <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-                        <button
-                            onClick={() => setFilterRel('All')}
-                            className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${filterRel === 'All' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
-                        >
-                            All
-                        </button>
-                        {categories.map(r => (
+                )}
+
+                <div className="flex items-center gap-2 sticky top-[73px] z-20 bg-slate-50/95 backdrop-blur-sm py-2 border-b border-slate-100">
+                    {isSearchOpen ? (
+                        <div className="flex-1 relative animate-fade-in">
+                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                            <input
+                                autoFocus
+                                type="text"
+                                placeholder="Search..."
+                                value={searchQuery}
+                                onChange={(e) => setSearchQuery(e.target.value)}
+                                className="w-full pl-9 pr-8 py-1.5 bg-white border border-slate-200 rounded-full text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
                             <button
-                                key={r}
-                                onClick={() => setFilterRel(r)}
-                                className={`whitespace-nowrap px-4 py-1.5 rounded-full text-sm font-medium transition-colors ${filterRel === r ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                                onClick={() => { setIsSearchOpen(false); setSearchQuery(''); }}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                             >
-                                {r}
+                                <X size={14} />
                             </button>
-                        ))}
-                    </div>
+                        </div>
+                    ) : (
+                        <button
+                            onClick={() => setIsSearchOpen(true)}
+                            className="p-2 bg-white border border-slate-200 rounded-full text-slate-500 hover:text-indigo-600 hover:border-indigo-200 transition-all shadow-sm"
+                        >
+                            <Search size={18} />
+                        </button>
+                    )}
+
+                    {!isSearchOpen && (
+                        <div className="flex-1 flex gap-2 overflow-x-auto no-scrollbar mask-gradient-right">
+                            <button
+                                onClick={() => setFilterRel('All')}
+                                className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${filterRel === 'All' ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                            >
+                                All
+                            </button>
+                            {categories.map(r => (
+                                <button
+                                    key={r}
+                                    onClick={() => setFilterRel(r)}
+                                    className={`whitespace-nowrap px-3 py-1.5 rounded-full text-xs font-medium transition-colors ${filterRel === r ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border border-slate-200'}`}
+                                >
+                                    {r}
+                                </button>
+                            ))}
+                        </div>
+                    )}
                 </div>
+
+                {/* Minimal Stats Inline Display if desired, or relying on Header modification below */}
+
 
                 {view === 'list' ? (
                     <div className="animate-fade-in">
@@ -464,12 +638,14 @@ export default function DashboardClient({
                 )}
             </main>
 
-            <button
-                onClick={openNewContactModal}
-                className="fixed bottom-24 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300 flex items-center justify-center hover:scale-105 active:scale-95 transition-all z-20"
-            >
-                <Plus size={28} strokeWidth={2.5} />
-            </button>
+            <div className="fixed bottom-24 left-1/2 -translate-x-1/2 w-full max-w-xl pointer-events-none z-20">
+                <button
+                    onClick={openNewContactModal}
+                    className="absolute right-6 bottom-0 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-lg shadow-indigo-300 flex items-center justify-center hover:scale-105 active:scale-95 transition-all pointer-events-auto"
+                >
+                    <Plus size={28} strokeWidth={2.5} />
+                </button>
+            </div>
 
             {isModalOpen && (
                 <AddEditContact

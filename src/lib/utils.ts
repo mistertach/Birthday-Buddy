@@ -42,17 +42,17 @@ export const getTodayString = (): string => {
 export const getNextBirthday = (day: number, month: number): Date => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const currentYear = today.getFullYear();
-  
+
   // JS Months are 0-indexed (1 = Feb), so subtract 1 from our month (1-12)
   const nextBirthday = new Date(currentYear, month - 1, day);
-  
+
   // If birthday has passed this year, move to next year
   if (nextBirthday < today) {
     nextBirthday.setFullYear(currentYear + 1);
   }
-  
+
   return nextBirthday;
 };
 
@@ -64,17 +64,17 @@ export const getNextBirthday = (day: number, month: number): Date => {
 export const getVisualDate = (day: number, month: number): Date => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  
+
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth(); // 0-11
-  
+
   const bMonthIdx = month - 1; // 0-11
-  
+
   let targetYear = currentYear;
-  
+
   // Construct this year's birthday
   const thisYearBday = new Date(currentYear, bMonthIdx, day);
-  
+
   if (thisYearBday < today) {
     // It has passed.
     if (bMonthIdx === currentMonth) {
@@ -85,7 +85,7 @@ export const getVisualDate = (day: number, month: number): Date => {
       targetYear = currentYear + 1;
     }
   }
-  
+
   return new Date(targetYear, bMonthIdx, day);
 };
 
@@ -93,9 +93,9 @@ export const getDaysUntil = (day: number, month: number): number => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const next = getNextBirthday(day, month);
-  
+
   const diffTime = Math.abs(next.getTime() - today.getTime());
-  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)); 
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
   return diffDays;
 };
 
@@ -104,21 +104,55 @@ export const formatDateFriendly = (day: number, month: number, year?: number): s
   // Use year 2000 as a leap year safe dummy
   const date = new Date(2000, month - 1, day);
   const monthName = date.toLocaleString('default', { month: 'short' });
-  
+
   if (!year) {
     return `${day} ${monthName}`;
   }
   return `${day} ${monthName} ${year}`;
 };
 
+/**
+ * Returns a friendly relative time string (e.g., "Tomorrow", "In 3 days").
+ * Returns null if the date is today or in the past (handled by other status logic).
+ */
+export const getRelativeTimeString = (days: number): string | null => {
+  if (days === 0) return "Today";
+  if (days === 1) return "Tomorrow";
+  if (days < 0) return null; // Should not happen with getDaysUntil but safety check
+  return `In ${days} days`;
+};
+
+/**
+ * Returns the next N upcoming birthdays, sorted by proximity.
+ */
+export const getNextBirthdays = (contacts: Contact[], limit: number = 2): Contact[] => {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // We want to sort all contacts by how soon their next birthday is
+  const withDistance = contacts.map(c => {
+    const next = getNextBirthday(c.day, c.month);
+    const diff = next.getTime() - today.getTime();
+    return { contact: c, diff, next };
+  });
+
+  // Filter out those that have passed today (if any edge case) 
+  // actually getNextBirthday handles wrapping to next year, so all dates are >= today
+
+  // Sort by time difference
+  withDistance.sort((a, b) => a.diff - b.diff);
+
+  return withDistance.slice(0, limit).map(d => d.contact);
+};
+
 export const getAgeTurning = (day: number, month: number, year?: number): number | null => {
   if (!year) return null;
-  
+
   const next = getNextBirthday(day, month);
   const age = next.getFullYear() - year;
-  
+
   if (age > 120 || age < 0) return null;
-  
+
   return age;
 };
 
@@ -127,10 +161,10 @@ export const getAgeTurning = (day: number, month: number, year?: number): number
  */
 export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'today' | 'upcoming' => {
   const today = new Date();
-  today.setHours(0,0,0,0);
+  today.setHours(0, 0, 0, 0);
   const currentYear = today.getFullYear();
   const currentMonth = today.getMonth(); // 0-11
-  
+
   // 1. Check if explicitly wished this year
   if (contact.lastWishedYear === currentYear) {
     return 'wished';
@@ -139,16 +173,16 @@ export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'toda
   // 2. Check date logic
   const bMonthIdx = contact.month - 1;
   const thisYearBday = new Date(currentYear, bMonthIdx, contact.day);
-  
+
   if (thisYearBday.getTime() === today.getTime()) {
     return 'today';
   }
-  
+
   // Only mark as MISSED if it is in the CURRENT MONTH and has passed.
   if (thisYearBday < today && bMonthIdx === currentMonth) {
     return 'missed';
   }
-  
+
   return 'upcoming';
 };
 
@@ -157,26 +191,26 @@ export const loadContacts = (): Contact[] => {
   try {
     const stored = localStorage.getItem(STORAGE_KEY_CONTACTS);
     if (!stored) return [];
-    
+
     const parsed = JSON.parse(stored);
-    
+
     // Migration: If data still has 'birthday' string, convert it
     return parsed.map((c: any) => {
-        if (c.birthday && !c.day) {
-            const parts = c.birthday.split('-');
-            const y = parseInt(parts[0]);
-            const m = parseInt(parts[1]);
-            const d = parseInt(parts[2]);
-            return {
-                ...c,
-                day: d,
-                month: m,
-                year: c.yearUnknown ? undefined : y,
-                birthday: undefined, // remove old field
-                yearUnknown: undefined
-            };
-        }
-        return c;
+      if (c.birthday && !c.day) {
+        const parts = c.birthday.split('-');
+        const y = parseInt(parts[0]);
+        const m = parseInt(parts[1]);
+        const d = parseInt(parts[2]);
+        return {
+          ...c,
+          day: d,
+          month: m,
+          year: c.yearUnknown ? undefined : y,
+          birthday: undefined, // remove old field
+          yearUnknown: undefined
+        };
+      }
+      return c;
     });
   } catch (e) {
     console.error("Failed to load contacts", e);
@@ -214,7 +248,7 @@ export const loadStreak = (): StreakData => {
 export const updateStreak = () => {
   const current = loadStreak();
   const today = getTodayString();
-  
+
   if (current.lastWishedDate === today) {
     return current; // Already wished today
   }
@@ -228,7 +262,7 @@ export const updateStreak = () => {
     newCount = current.count + 1;
   } else if (current.lastWishedDate === null) {
     newCount = 1;
-  } 
+  }
 
   const newData = { count: newCount, lastWishedDate: today };
   localStorage.setItem(STORAGE_KEY_STREAK, JSON.stringify(newData));
