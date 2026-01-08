@@ -19,6 +19,8 @@ export async function createEvent(data: {
         nodeEnv: process.env.NODE_ENV
     });
 
+    const session = await auth();
+
     if (!session?.user?.email) {
         console.error('[createEvent] Auth Failed. Session:', session ? 'Exists (empty user)' : 'Null');
         return { success: false, error: 'Not authenticated. Please try logging in again.' };
