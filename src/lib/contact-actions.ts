@@ -61,11 +61,15 @@ export async function createContacts(contactsData: Omit<Contact, 'id'>[]) {
         throw new Error('User not found');
     }
 
-    // Add userId to each contact
-    const dataWithUser = contactsData.map(c => ({
-        ...c,
-        userId: user.id,
-    }));
+    // Add userId to each contact and remove events
+    const dataWithUser = contactsData.map(c => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { events, ...rest } = c;
+        return {
+            ...rest,
+            userId: user.id,
+        };
+    });
 
     const created = await prisma.contact.createMany({
         data: dataWithUser,
@@ -81,9 +85,12 @@ export async function updateContact(id: string, data: Partial<Contact>) {
         throw new Error('Unauthorized');
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { events, ...cleanData } = data;
+
     const contact = await prisma.contact.update({
         where: { id },
-        data,
+        data: cleanData,
     });
 
     revalidatePath('/dashboard');
