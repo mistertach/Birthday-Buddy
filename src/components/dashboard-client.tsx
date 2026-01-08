@@ -475,7 +475,7 @@ export default function DashboardClient({
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-lg text-sm font-medium transition-colors"
                     >
                         <UserPlus size={16} />
-                        Share Birthdays
+                        Share
                     </button>
 
                     <button
@@ -569,13 +569,12 @@ export default function DashboardClient({
                                         <div
                                             key={`next-evt-${event.id}`}
                                             onClick={() => { setEditingEvent(event); setIsEventModalOpen(true); }}
-                                            className="flex-shrink-0 w-[180px] p-3 rounded-2xl bg-white border border-slate-100 shadow-sm hover:shadow-md hover:border-purple-100 transition-all cursor-pointer group relative overflow-hidden"
+                                            className="flex-shrink-0 w-[180px] p-3 rounded-2xl bg-white border-2 border-purple-500 shadow-sm hover:shadow-md transition-all cursor-pointer group relative overflow-hidden"
                                         >
-                                            <div className="absolute top-0 left-0 w-1 h-full bg-purple-500"></div>
                                             <div className="flex flex-col gap-2">
                                                 <div className="flex justify-between items-start">
                                                     <div className="flex flex-col min-w-0">
-                                                        <span className="text-xs font-bold text-slate-400 uppercase tracking-tighter flex items-center gap-1">
+                                                        <span className="text-xs font-bold text-purple-600 uppercase tracking-tighter flex items-center gap-1">
                                                             <PartyPopper size={10} />
                                                             {d.toLocaleDateString([], { month: 'short', day: 'numeric' })}
                                                         </span>
@@ -698,7 +697,7 @@ export default function DashboardClient({
                 ) : (
                     <div className="animate-fade-in space-y-4">
                         <div className="flex items-center justify-between mb-2">
-                            <h2 className="text-lg font-bold text-slate-900">Events & Gifts</h2>
+                            <h2 className="text-lg font-bold text-slate-900">Events</h2>
                             <button onClick={openNewEventModal} className="text-indigo-600 font-bold text-sm">
                                 + New Event
                             </button>
@@ -781,7 +780,7 @@ export default function DashboardClient({
                     className={`flex flex-col items-center gap-1 ${view === 'list' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <List size={24} />
-                    <span className="text-[10px] font-medium">List</span>
+                    <span className="text-[10px] font-medium">Birthdays</span>
                 </button>
                 <button
                     onClick={() => setView('calendar')}
@@ -795,7 +794,7 @@ export default function DashboardClient({
                     className={`flex flex-col items-center gap-1 ${view === 'gifts' ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}
                 >
                     <Gift size={24} />
-                    <span className="text-[10px] font-medium">Gifts</span>
+                    <span className="text-[10px] font-medium">Events</span>
                 </button>
             </nav>
 
