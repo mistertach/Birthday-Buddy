@@ -94,7 +94,7 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                                     const c = contacts.find(c => c.id === e.target.value);
                                     if (c && !name) setName(c.name + "'s Party");
                                 }}
-                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none mb-2"
+                                className="w-full p-3 bg-slate-50 border border-slate-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none mb-2"
                             >
                                 <option value="">-- Ad-hoc (No Contact Link) --</option>
                                 {contacts.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
@@ -121,7 +121,7 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                                         type="datetime-local"
                                         value={date}
                                         onChange={(e) => setDate(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                                     />
                                 </div>
                             </div>
@@ -134,7 +134,7 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                                         placeholder="Location / Address"
                                         value={location}
                                         onChange={(e) => setLocation(e.target.value)}
-                                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full pl-10 pr-4 py-3 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                                     />
                                 </div>
                             </div>
@@ -170,7 +170,7 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                                         placeholder="Budget"
                                         value={giftBudget}
                                         onChange={(e) => setGiftBudget(e.target.value)}
-                                        className="w-full pl-8 pr-3 py-2 bg-white border border-indigo-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                        className="w-full pl-8 pr-3 py-2 bg-white border border-indigo-100 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                                     />
                                 </div>
                                 <input
@@ -178,7 +178,7 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                                     placeholder="Gift Ideas / Notes"
                                     value={giftNotes}
                                     onChange={(e) => setGiftNotes(e.target.value)}
-                                    className="flex-1 px-3 py-2 bg-white border border-indigo-100 rounded-lg text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                                    className="flex-1 px-3 py-2 bg-white border border-indigo-100 rounded-lg text-sm text-slate-900 focus:ring-2 focus:ring-indigo-500 outline-none"
                                 />
                             </div>
                         </div>

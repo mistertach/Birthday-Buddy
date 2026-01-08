@@ -34,9 +34,11 @@ export async function createContact(data: Omit<Contact, 'id'>) {
         throw new Error('User not found');
     }
 
+    const { events, ...cleanData } = data;
+
     const contact = await prisma.contact.create({
         data: {
-            ...data,
+            ...cleanData,
             userId: user.id,
         },
     });

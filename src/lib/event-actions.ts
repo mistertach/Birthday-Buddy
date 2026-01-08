@@ -14,13 +14,21 @@ export async function createEvent(data: {
     giftNotes?: string;
 }) {
     const session = await auth();
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
         throw new Error('Not authenticated');
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
+
+    if (!user) {
+        throw new Error('User not found');
     }
 
     const event = await prisma.partyEvent.create({
         data: {
-            userId: session.user.id,
+            userId: user.id,
             name: data.name,
             date: new Date(data.date),
             location: data.location,
@@ -99,12 +107,20 @@ export async function deleteEvent(id: string) {
 
 export async function getEvents() {
     const session = await auth();
-    if (!session?.user?.id) {
+    if (!session?.user?.email) {
+        return [];
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
+
+    if (!user) {
         return [];
     }
 
     const events = await prisma.partyEvent.findMany({
-        where: { userId: session.user.id },
+        where: { userId: user.id },
         orderBy: { date: 'asc' },
         include: {
             contact: true

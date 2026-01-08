@@ -4,7 +4,7 @@ import { getContacts } from '@/lib/contact-actions';
 import { getEvents } from '@/lib/event-actions';
 import DashboardClient from '@/components/dashboard-client';
 import { prisma } from '@/lib/prisma';
-import { ReminderType, type Contact } from '@/lib/types';
+import { ReminderType, type Contact, type PartyEvent } from '@/lib/types';
 
 export default async function DashboardPage() {
     const session = await auth();
@@ -45,7 +45,16 @@ export default async function DashboardPage() {
     const streak = rawUser?.streak ?? 0;
     const wishesDelivered = rawUser?.wishesDelivered ?? 0;
 
-    const events = await getEvents();
+    const rawEvents = await getEvents();
+    const events: PartyEvent[] = rawEvents.map((e: any) => ({
+        ...e,
+        giftStatus: (e.giftStatus as any) || 'NONE',
+        rsvpStatus: (e.rsvpStatus as any) || 'PENDING',
+        location: e.location ?? null,
+        contactId: e.contactId ?? null,
+        giftBudget: e.giftBudget ?? null,
+        giftNotes: e.giftNotes ?? null
+    }));
 
     return (
         <DashboardClient
