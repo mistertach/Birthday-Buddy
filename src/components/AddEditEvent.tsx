@@ -28,8 +28,9 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
         e.preventDefault();
         setIsSaving(true);
         try {
+            let result;
             if (initialData) {
-                await updateEvent(initialData.id, {
+                result = await updateEvent(initialData.id, {
                     name,
                     date,
                     location,
@@ -39,7 +40,7 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                     rsvpStatus
                 });
             } else {
-                await createEvent({
+                result = await createEvent({
                     name,
                     date,
                     location,
@@ -49,6 +50,13 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
                     giftNotes
                 });
             }
+
+            if (result && !result.success) {
+                alert(result.error);
+                setIsSaving(false);
+                return;
+            }
+
             onSave();
             onClose();
         } catch (error) {
