@@ -23,24 +23,33 @@ export async function createEvent(data: {
     });
 
     if (!user) {
+        console.error('[createEvent] User not found for email:', session.user.email);
         throw new Error('User not found');
     }
 
-    const event = await prisma.partyEvent.create({
-        data: {
-            userId: user.id,
-            name: data.name,
-            date: new Date(data.date),
-            location: data.location,
-            contactId: data.contactId || undefined,
-            giftStatus: data.giftStatus || 'NONE',
-            giftBudget: data.giftBudget ? parseFloat(data.giftBudget.toString()) : undefined,
-            giftNotes: data.giftNotes
-        }
-    });
+    console.log('[createEvent] Payload:', { ...data, userId: user.id });
 
-    revalidatePath('/dashboard');
-    return event;
+    try {
+        const event = await prisma.partyEvent.create({
+            data: {
+                userId: user.id,
+                name: data.name,
+                date: new Date(data.date),
+                location: data.location,
+                contactId: data.contactId || undefined,
+                giftStatus: data.giftStatus || 'NONE',
+                giftBudget: data.giftBudget ? parseFloat(data.giftBudget.toString()) : undefined,
+                giftNotes: data.giftNotes
+            }
+        });
+
+        console.log('[createEvent] Created:', event.id);
+        revalidatePath('/dashboard');
+        return event;
+    } catch (e) {
+        console.error('[createEvent] DB Create Error:', e);
+        throw e;
+    }
 }
 
 export async function updateEvent(id: string, data: {
