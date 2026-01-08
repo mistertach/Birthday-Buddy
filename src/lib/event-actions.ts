@@ -112,24 +112,37 @@ export async function updateEvent(id: string, data: {
 
 export async function deleteEvent(id: string) {
     const session = await auth();
-    if (!session?.user?.id) {
-        throw new Error('Not authenticated');
+    if (!session?.user?.email) {
+        return { success: false, error: 'Not authenticated' };
+    }
+
+    const user = await prisma.user.findUnique({
+        where: { email: session.user.email },
+    });
+
+    if (!user) {
+        return { success: false, error: 'User not found' };
     }
 
     const existing = await prisma.partyEvent.findUnique({
         where: { id }
     });
 
-    if (!existing || existing.userId !== session.user.id) {
-        throw new Error('Not authorized');
+    if (!existing || existing.userId !== user.id) {
+        return { success: false, error: 'Not authorized to delete this event' };
     }
 
-    await prisma.partyEvent.delete({
-        where: { id }
-    });
+    try {
+        await prisma.partyEvent.delete({
+            where: { id }
+        });
 
-    revalidatePath('/dashboard');
-    return { success: true };
+        revalidatePath('/dashboard');
+        return { success: true };
+    } catch (e) {
+        console.error('[deleteEvent] Error:', e);
+        return { success: false, error: 'Failed to delete event' };
+    }
 }
 
 export async function getEvents() {

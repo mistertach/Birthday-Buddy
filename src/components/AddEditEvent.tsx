@@ -70,7 +70,13 @@ export const AddEditEvent: React.FC<AddEditEventProps> = ({ onClose, onSave, ini
     const handleDelete = async () => {
         if (confirm('Delete this event?')) {
             try {
-                if (initialData) await deleteEvent(initialData.id);
+                if (initialData) {
+                    const result = await deleteEvent(initialData.id);
+                    if (!result.success) {
+                        alert(result.error);
+                        return;
+                    }
+                }
                 onSave();
                 onClose();
             } catch (e) {
