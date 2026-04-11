@@ -122,7 +122,8 @@ export default function DashboardClient({
                 const updated = normalizeContact(await updateContact(contact.id, contact));
                 setContacts(prev => prev.map(c => c.id === updated.id ? updated : c));
             } else {
-                const created = normalizeContact(await createContact(contact));
+                const { id, ...contactData } = contact;
+                const created = normalizeContact(await createContact(contactData));
                 setContacts(prev => [...prev, created]);
             }
             setIsModalOpen(false);
