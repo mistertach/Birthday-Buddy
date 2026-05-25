@@ -43,3 +43,13 @@ next-env.d.ts
 /src/generated/prisma
 .env
 .env.local
+
+# Mobile (Expo)
+mobile/node_modules/
+mobile/.expo/
+mobile/dist/
+mobile/web-build/
+mobile/.env*.local
+mobile/ios/
+mobile/android/
+mobile/*.tsbuildinfo
