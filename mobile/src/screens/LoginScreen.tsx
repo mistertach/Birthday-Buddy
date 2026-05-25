@@ -7,11 +7,17 @@ import { useAuth } from '../auth/AuthContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
 import { colors, radius, shadow, font } from '../theme';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { getBaseUrl } from '../api/client';
+import SocialAuthButtons from '../components/SocialAuthButtons';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 
 export default function LoginScreen({ navigation }: Props) {
-    const { login } = useAuth();
+    const { login, loginWithToken } = useAuth();
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [showPassword, setShowPassword] = useState(false);
@@ -27,6 +33,42 @@ export default function LoginScreen({ navigation }: Props) {
             await login(email.trim().toLowerCase(), password);
         } catch (e: any) {
             Alert.alert('Could not log in', e?.error || 'Check your email and password and try again.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSocialLogin = async (provider: 'google' | 'apple') => {
+        setSubmitting(true);
+        try {
+            const redirectUri = Linking.createURL('/auth-callback');
+            const authUrl = `${getBaseUrl()}/api/auth/mobile/social/start?provider=${provider}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+            
+            const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+            
+            if (result.type === 'success' && result.url) {
+                const parsed = Linking.parse(result.url);
+                const { token, id, email: userEmail, name, isAdmin } = parsed.queryParams || {};
+                
+                if (token && id && userEmail) {
+                    await loginWithToken(token as string, {
+                        id: id as string,
+                        email: userEmail as string,
+                        name: (name as string) || '',
+                        isAdmin: isAdmin === 'true',
+                    });
+                } else {
+                    const error = parsed.queryParams?.error || 'Authentication parameters missing';
+                    Alert.alert('Authentication Failed', `Could not sign in: ${error}`);
+                }
+            } else if (result.type === 'cancel') {
+                // User cancelled
+            } else {
+                Alert.alert('Authentication Failed', 'An unknown error occurred.');
+            }
+        } catch (e: any) {
+            console.error(e);
+            Alert.alert('Error', 'Failed to connect to the authentication server.');
         } finally {
             setSubmitting(false);
         }
@@ -108,6 +150,16 @@ export default function LoginScreen({ navigation }: Props) {
                     <View style={styles.dividerRow}>
                         <View style={styles.dividerLine} />
                         <Text style={styles.dividerText}>or</Text>
+                        <View style={styles.dividerLine} />
+                    </View>
+
+                    <SocialAuthButtons
+                        onGoogle={() => handleSocialLogin('google')}
+                        onApple={() => handleSocialLogin('apple')}
+                        loading={submitting}
+                    />
+
+                    <View style={[styles.dividerRow, { marginVertical: 12 }]}>
                         <View style={styles.dividerLine} />
                     </View>
 

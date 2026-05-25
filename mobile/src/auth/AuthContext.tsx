@@ -12,6 +12,7 @@ type AuthState = {
     loading: boolean;
     login: (email: string, password: string) => Promise<void>;
     register: (name: string, email: string, password: string) => Promise<void>;
+    loginWithToken: (token: string, user: User) => Promise<void>;
     logout: () => Promise<void>;
 };
 
@@ -60,6 +61,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         await persist(res.token, res.user);
     }, [persist]);
 
+    const loginWithToken = useCallback(async (t: string, u: User) => {
+        await persist(t, u);
+    }, [persist]);
+
     const logout = useCallback(async () => {
         await AsyncStorage.removeItem(TOKEN_KEY);
         setAuthToken(null);
@@ -67,7 +72,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         setUser(null);
     }, []);
 
-    const value = useMemo(() => ({ user, token, loading, login, register, logout }), [user, token, loading, login, register, logout]);
+    const value = useMemo(() => ({ user, token, loading, login, register, loginWithToken, logout }), [user, token, loading, login, register, loginWithToken, logout]);
 
     return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

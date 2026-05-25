@@ -7,11 +7,17 @@ import { useAuth } from '../auth/AuthContext';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { AuthStackParamList } from '../navigation/types';
 import { colors, radius, shadow, font } from '../theme';
+import * as WebBrowser from 'expo-web-browser';
+import * as Linking from 'expo-linking';
+import { getBaseUrl } from '../api/client';
+import SocialAuthButtons from '../components/SocialAuthButtons';
+
+WebBrowser.maybeCompleteAuthSession();
 
 type Props = NativeStackScreenProps<AuthStackParamList, 'Register'>;
 
 export default function RegisterScreen({ navigation }: Props) {
-    const { register } = useAuth();
+    const { register, loginWithToken } = useAuth();
     const [name, setName] = useState('');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -44,6 +50,42 @@ export default function RegisterScreen({ navigation }: Props) {
             await register(name.trim(), email.trim().toLowerCase(), password);
         } catch (e: any) {
             Alert.alert('Sign up failed', e?.error || 'Something went wrong, please try again.');
+        } finally {
+            setSubmitting(false);
+        }
+    };
+
+    const handleSocialLogin = async (provider: 'google' | 'apple') => {
+        setSubmitting(true);
+        try {
+            const redirectUri = Linking.createURL('/auth-callback');
+            const authUrl = `${getBaseUrl()}/api/auth/mobile/social/start?provider=${provider}&redirect_uri=${encodeURIComponent(redirectUri)}`;
+            
+            const result = await WebBrowser.openAuthSessionAsync(authUrl, redirectUri);
+            
+            if (result.type === 'success' && result.url) {
+                const parsed = Linking.parse(result.url);
+                const { token, id, email: userEmail, name: userName, isAdmin } = parsed.queryParams || {};
+                
+                if (token && id && userEmail) {
+                    await loginWithToken(token as string, {
+                        id: id as string,
+                        email: userEmail as string,
+                        name: (userName as string) || '',
+                        isAdmin: isAdmin === 'true',
+                    });
+                } else {
+                    const error = parsed.queryParams?.error || 'Authentication parameters missing';
+                    Alert.alert('Authentication Failed', `Could not sign in: ${error}`);
+                }
+            } else if (result.type === 'cancel') {
+                // User cancelled
+            } else {
+                Alert.alert('Authentication Failed', 'An unknown error occurred.');
+            }
+        } catch (e: any) {
+            console.error(e);
+            Alert.alert('Error', 'Failed to connect to the authentication server.');
         } finally {
             setSubmitting(false);
         }
@@ -140,6 +182,22 @@ export default function RegisterScreen({ navigation }: Props) {
                         }
                     </TouchableOpacity>
 
+                    <View style={styles.dividerRow}>
+                        <View style={styles.dividerLine} />
+                        <Text style={styles.dividerText}>or</Text>
+                        <View style={styles.dividerLine} />
+                    </View>
+
+                    <SocialAuthButtons
+                        onGoogle={() => handleSocialLogin('google')}
+                        onApple={() => handleSocialLogin('apple')}
+                        loading={submitting}
+                    />
+
+                    <View style={[styles.dividerRow, { marginVertical: 8 }]}>
+                        <View style={styles.dividerLine} />
+                    </View>
+
                     <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
                         <Text style={styles.backBtnText}>← Back to login</Text>
                     </TouchableOpacity>
@@ -183,6 +241,9 @@ const styles = StyleSheet.create({
     },
     primaryBtnDisabled: { opacity: 0.7 },
     primaryBtnText: { color: '#fff', fontSize: font.md, fontWeight: '700' },
+    dividerRow: { flexDirection: 'row', alignItems: 'center', marginVertical: 18, gap: 10 },
+    dividerLine: { flex: 1, height: 1, backgroundColor: colors.border },
+    dividerText: { fontSize: font.sm, color: colors.textMuted },
     backBtn: { paddingVertical: 14, alignItems: 'center', marginTop: 4 },
     backBtnText: { color: colors.textSecondary, fontSize: font.base },
 });

@@ -1,6 +1,8 @@
 import NextAuth from 'next-auth';
 import Credentials from 'next-auth/providers/credentials';
 import Email from 'next-auth/providers/email';
+import Google from 'next-auth/providers/google';
+import Apple from 'next-auth/providers/apple';
 import { authConfig } from './auth.config';
 import { prisma } from '@/lib/prisma';
 import { PrismaAdapter } from '@auth/prisma-adapter';
@@ -22,7 +24,14 @@ export const { auth, signIn, signOut, handlers } = NextAuth({
     ...authConfig,
     adapter: PrismaAdapter(prisma),
     session: { strategy: 'jwt' }, // Use JWT to avoid database sessions for Credentials
+    trustHost: true,
     providers: [
+        Google({
+            allowDangerousEmailAccountLinking: true,
+        }),
+        Apple({
+            allowDangerousEmailAccountLinking: true,
+        }),
         Credentials({
             async authorize(credentials) {
                 const parsedCredentials = z

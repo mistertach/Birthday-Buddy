@@ -50,6 +50,14 @@ export async function authenticate(
     }
 }
 
+export async function signInWithGoogle() {
+    await signIn('google', { redirectTo: '/dashboard' });
+}
+
+export async function signInWithApple() {
+    await signIn('apple', { redirectTo: '/dashboard' });
+}
+
 export async function handleSignOut() {
     await signOut();
 }

@@ -10,15 +10,24 @@ export const authConfig = {
             const isOnDashboard = nextUrl.pathname.startsWith('/dashboard');
             if (isOnDashboard) {
                 if (isLoggedIn) return true;
-                return false; // Redirect unauthenticated users to login page
+                return false;
             } else if (isLoggedIn) {
-                // Redirect logged-in users away from login page
-                if (nextUrl.pathname === '/login' || nextUrl.pathname === '/') {
+                if (nextUrl.pathname === '/login' || nextUrl.pathname === '/register' || nextUrl.pathname === '/') {
                     return Response.redirect(new URL('/dashboard', nextUrl));
                 }
             }
             return true;
         },
+        jwt({ token, user }) {
+            if (user) token.id = user.id;
+            return token;
+        },
+        session({ session, token }) {
+            if (session.user && token.id) {
+                session.user.id = token.id as string;
+            }
+            return session;
+        },
     },
-    providers: [], // Add providers with an empty array for now
+    providers: [],
 } satisfies NextAuthConfig;
