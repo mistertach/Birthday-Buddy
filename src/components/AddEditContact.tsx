@@ -164,14 +164,14 @@ export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, 
 
             <div className="space-y-1">
               <label className="text-xs font-semibold text-slate-600 uppercase tracking-wider flex items-center gap-1">
-                <Baby size={12} /> Linked Parent
+                <Baby size={12} /> Send wishes via
               </label>
               <select
                 value={parentId}
                 onChange={(e) => setParentId(e.target.value)}
                 className="w-full p-3 bg-white border border-slate-300 rounded-xl focus:ring-2 focus:ring-indigo-500 outline-none text-slate-900 text-sm"
               >
-                <option value="">None (Independent)</option>
+                <option value="">Direct (use their own phone)</option>
                 {possibleParents.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
                 ))}
@@ -181,7 +181,7 @@ export const AddEditContact: React.FC<Props> = ({ onSave, onClose, initialData, 
 
           {parentId && (
             <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded-lg border border-indigo-100">
-              Messages for <strong>{name}</strong> will be sent to the parent.
+              Wishes for <strong>{name || 'this person'}</strong> will be sent to the linked contact's phone number.
             </div>
           )}
 

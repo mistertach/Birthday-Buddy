@@ -242,7 +242,7 @@ export async function acceptContactShare(
         });
 
         // Create new contacts for the recipient
-        const newContactsData = originalContacts.map(c => ({
+        const newContactsData = originalContacts.map((c: any) => ({
             userId: user.id,
             name: c.name,
             day: c.day,

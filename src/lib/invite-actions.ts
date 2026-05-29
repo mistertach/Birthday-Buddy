@@ -157,7 +157,7 @@ export async function acceptInvitation(token: string, selectedContactIds?: strin
         });
 
         // Prepare data for new contacts
-        const newContactsData = originalContacts.map(c => ({
+        const newContactsData = originalContacts.map((c: any) => ({
             userId: user.id,
             name: c.name,
             day: c.day,

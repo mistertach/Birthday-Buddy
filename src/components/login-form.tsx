@@ -1,157 +1,147 @@
 'use client';
 
-import { useActionState } from 'react';
+import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 import { authenticate, signInWithMagicLink } from '@/lib/actions';
 import SocialAuthButtons from '@/components/social-auth-buttons';
 import { Loader2 } from 'lucide-react';
 
+type AuthMethod = 'password' | 'magic';
+
 export default function LoginForm() {
-    const [errorMessage, dispatch] = useActionState(authenticate, undefined);
-    const [magicLinkState, magicLinkDispatch] = useActionState(signInWithMagicLink, undefined);
+    const [method, setMethod] = useState<AuthMethod>('password');
+    const [email, setEmail] = useState('');
+
+    const [passwordError, passwordDispatch] = useActionState(authenticate, undefined);
+    const [magicState, magicDispatch] = useActionState(signInWithMagicLink, undefined);
 
     return (
-        <div className="space-y-3">
-            <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
-                <h1 className="mb-3 text-2xl font-bold text-gray-900">
-                    Please log in to continue.
-                </h1>
+        <div className="flex-1 rounded-lg bg-gray-50 px-6 pb-4 pt-8">
+            <h1 className="mb-6 text-2xl font-bold text-gray-900">Welcome back</h1>
 
-                <form action={dispatch}>
-                    <div className="w-full">
-                        <div>
-                            <label
-                                className="mb-3 mt-5 block text-xs font-medium text-gray-900"
-                                htmlFor="email"
-                            >
-                                Email
-                            </label>
-                            <div className="relative">
-                                <input
-                                    className="peer block w-full rounded-md border border-gray-200 py-[9px] pl-3 text-sm outline-2 placeholder:text-gray-500 text-gray-900"
-                                    id="email"
-                                    type="email"
-                                    name="email"
-                                    placeholder="Enter your email address"
-                                    required
-                                />
-                            </div>
-                        </div>
-                        <div className="mt-4">
-                            <label
-                                className="mb-3 mt-5 block text-xs font-medium text-gray-900"
-                                htmlFor="password"
-                            >
+            {/* Social auth */}
+            <SocialAuthButtons />
+
+            <div className="relative my-5">
+                <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-300" />
+                </div>
+                <div className="relative flex justify-center text-sm">
+                    <span className="px-2 bg-gray-50 text-gray-500">Or sign in with email</span>
+                </div>
+            </div>
+
+            {/* Shared email field */}
+            <div>
+                <label className="mb-2 block text-xs font-medium text-gray-900" htmlFor="shared-email">
+                    Email
+                </label>
+                <input
+                    id="shared-email"
+                    type="email"
+                    placeholder="Enter your email address"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    required
+                    className="block w-full rounded-md border border-gray-200 py-[9px] pl-3 text-sm outline-2 placeholder:text-gray-500 text-gray-900"
+                />
+            </div>
+
+            {/* Auth method tabs */}
+            <div className="mt-4 mb-4 flex rounded-lg border border-gray-200 overflow-hidden">
+                <button
+                    type="button"
+                    onClick={() => setMethod('password')}
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${method === 'password' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                    Password
+                </button>
+                <button
+                    type="button"
+                    onClick={() => setMethod('magic')}
+                    className={`flex-1 py-2 text-sm font-medium transition-colors ${method === 'magic' ? 'bg-indigo-600 text-white' : 'bg-white text-gray-600 hover:bg-gray-50'}`}
+                >
+                    Email link
+                </button>
+            </div>
+
+            {/* Password form */}
+            {method === 'password' && (
+                <form action={passwordDispatch} className="space-y-4">
+                    <input type="hidden" name="email" value={email} />
+                    <div>
+                        <div className="flex items-center justify-between mb-2">
+                            <label className="block text-xs font-medium text-gray-900" htmlFor="password">
                                 Password
                             </label>
-                            <div className="relative">
-                                <input
-                                    className="peer block w-full rounded-md border border-gray-200 py-[9px] pl-3 text-sm outline-2 placeholder:text-gray-500 text-gray-900"
-                                    id="password"
-                                    type="password"
-                                    name="password"
-                                    placeholder="Enter password"
-                                    required
-                                    minLength={6}
-                                />
-                            </div>
-                            <div className="text-right mt-2">
-                                <a href="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-800">
-                                    Forgot password?
-                                </a>
-                            </div>
+                            <a href="/forgot-password" className="text-xs text-indigo-600 hover:text-indigo-800">
+                                Forgot password?
+                            </a>
                         </div>
+                        <input
+                            id="password"
+                            className="block w-full rounded-md border border-gray-200 py-[9px] pl-3 text-sm outline-2 placeholder:text-gray-500 text-gray-900"
+                            type="password"
+                            name="password"
+                            placeholder="Enter password"
+                            required
+                            minLength={6}
+                        />
                     </div>
                     <LoginButton />
-                    <div
-                        className="flex h-8 items-end space-x-1"
-                        aria-live="polite"
-                        aria-atomic="true"
-                    >
-                        {errorMessage && (
-                            <p className="text-sm text-red-500">{errorMessage}</p>
-                        )}
+                    <div className="flex h-6 items-end" aria-live="polite">
+                        {passwordError && <p className="text-sm text-red-500">{passwordError}</p>}
                     </div>
                 </form>
+            )}
 
-                <div className="text-center mt-4">
-                    <p className="text-sm text-gray-600">
-                        Don&apos;t have an account?{' '}
-                        <a href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
-                            Sign up
-                        </a>
-                    </p>
-                </div>
-
-                <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-gray-50 text-gray-500">Or continue with</span>
-                    </div>
-                </div>
-
-                <SocialAuthButtons />
-
-                <div className="relative my-6">
-                    <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-300"></div>
-                    </div>
-                    <div className="relative flex justify-center text-sm">
-                        <span className="px-2 bg-gray-50 text-gray-500">Or email link</span>
-                    </div>
-                </div>
-
-                <form action={magicLinkDispatch} className="mt-4">
-                    <input
-                        type="email"
-                        name="email"
-                        placeholder="Enter your email"
-                        required
-                        className="w-full px-4 py-2 rounded-md border border-gray-200 text-sm outline-2 placeholder:text-gray-500 text-gray-900 mb-3"
-                    />
+            {/* Magic link form */}
+            {method === 'magic' && (
+                <form action={magicDispatch} className="space-y-4">
+                    <input type="hidden" name="email" value={email} />
+                    <p className="text-sm text-gray-600">We'll send a one-click login link to your inbox — no password needed.</p>
                     <MagicLinkButton />
-                    {magicLinkState && (
-                        <div className="mt-2 text-sm text-center">
-                            {/* If it's a string, it's an error. If we returned success object, we could check that.
-                                 Currently logic only returns string on error.
-                                 Let's assume if it returns nothing/undefined, it worked?
-                                 Wait, server action returns Promise<void> if success?
-                                 Ah, signIn(redirect:false) returns a Promise.
-                                 I need to handle success state in the action more explicitly.
-                             */}
-                            <p className={magicLinkState.includes('sent') ? "text-green-600" : "text-red-500"}>
-                                {magicLinkState}
+                    {magicState && (
+                        <div className="text-sm text-center" aria-live="polite">
+                            <p className={magicState.includes('sent') ? 'text-green-600' : 'text-red-500'}>
+                                {magicState}
                             </p>
                         </div>
                     )}
                 </form>
-            </div>
+            )}
+
+            <p className="mt-6 text-center text-sm text-gray-600">
+                Don&apos;t have an account?{' '}
+                <a href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+                    Sign up
+                </a>
+            </p>
         </div>
+    );
+}
+
+function LoginButton() {
+    const { pending } = useFormStatus();
+    return (
+        <button
+            className="w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-500 transition-colors flex justify-center"
+            aria-disabled={pending}
+        >
+            {pending ? <Loader2 className="animate-spin" /> : 'Log in'}
+        </button>
     );
 }
 
 function MagicLinkButton() {
     const { pending } = useFormStatus();
-
     return (
         <button
             type="submit"
             disabled={pending}
             className="w-full bg-white border border-indigo-600 text-indigo-600 py-2 rounded-lg hover:bg-indigo-50 transition-colors font-medium text-sm disabled:opacity-50"
         >
-            {pending ? 'Sending...' : 'Email me a login link'}
-        </button>
-    );
-}
-
-function LoginButton() {
-    const { pending } = useFormStatus();
-
-    return (
-        <button className="mt-4 w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-500 transition-colors flex justify-center" aria-disabled={pending}>
-            {pending ? <Loader2 className="animate-spin" /> : 'Log in'}
+            {pending ? 'Sending…' : 'Email me a login link'}
         </button>
     );
 }

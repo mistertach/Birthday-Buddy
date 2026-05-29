@@ -1,23 +1,28 @@
 import React, { useState } from 'react';
-import { Contact, GreetingTemplate } from '../lib/types';
+import { Contact, GreetingTemplate, PartyEvent } from '../lib/types';
 import { getAgeTurning, formatDateFriendly, getCategoryColor, getBirthdayStatus } from '../lib/utils';
-import { X, Phone, User, Calendar, StickyNote, Edit2, Sparkles, ExternalLink, Link, CheckCircle, Circle } from 'lucide-react';
+import { X, Phone, User, Calendar, StickyNote, Edit2, Sparkles, ExternalLink, Link, CheckCircle, Circle, PartyPopper, MapPin } from 'lucide-react';
 import { AIGenerator } from './AIGenerator';
+
+const RSVP_LABELS: Record<string, string> = {
+    PENDING: 'Pending', GOING: 'Going', NOT_GOING: 'Not Going',
+};
 
 interface Props {
   contact: Contact;
   parentContact?: Contact;
+  contactEvents?: PartyEvent[];
   onClose: () => void;
   onEdit: (c: Contact) => void;
   onWish: (id: string, status?: boolean) => void;
 }
 
 const PRESET_MESSAGES: GreetingTemplate[] = [
-  { id: '1', text: 'Hope you’re having a great day! 🎉', category: 'Casual' },
+  { id: '1', text: "Hope you're having a great day! 🎉", category: 'Casual' },
   { id: '2', text: 'Happy Birthday! Have a blast! 🎂', category: 'Casual' },
 ];
 
-export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, onClose, onEdit, onWish }) => {
+export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, contactEvents = [], onClose, onEdit, onWish }) => {
   const [showAI, setShowAI] = useState(false);
   const categoryColor = getCategoryColor(contact.relationship);
   const turningAge = getAgeTurning(contact.day, contact.month, contact.year);
@@ -32,7 +37,6 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
     const url = phoneToUse
       ? `https://wa.me/${phoneToUse.replace(/\D/g, '')}?text=${text}`
       : `https://wa.me/?text=${text}`;
-
     window.open(url, '_blank');
     onWish(contact.id, true);
   };
@@ -67,26 +71,23 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
           </button>
         </div>
 
-        {/* Body (Scrollable) */}
+        {/* Body */}
         <div className="p-6 overflow-y-auto space-y-6">
 
-          {/* Status Toggle */}
+          {/* Wish status toggle */}
           <div className="flex items-center justify-between bg-slate-50 p-3 rounded-xl border border-slate-200">
             <span className="text-sm font-semibold text-slate-700">Birthday Status</span>
             <button
               onClick={() => onWish(contact.id, !isWished)}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isWished ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white text-slate-500 border border-slate-300'
-                }`}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${
+                isWished ? 'bg-green-100 text-green-700 border border-green-200' : 'bg-white text-slate-500 border border-slate-300'
+              }`}
             >
-              {isWished ? (
-                <> <CheckCircle size={14} /> Wished </>
-              ) : (
-                <> <Circle size={14} /> Pending </>
-              )}
+              {isWished ? <><CheckCircle size={14} /> Wished</> : <><Circle size={14} /> Pending</>}
             </button>
           </div>
 
-          {/* Info Grid */}
+          {/* Info grid */}
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
               <label className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
@@ -94,7 +95,6 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
               </label>
               <p className="text-slate-800 font-medium">{formattedDate}</p>
             </div>
-
             {contact.year && turningAge !== null && (
               <div className="space-y-1">
                 <label className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
@@ -103,45 +103,74 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
                 <p className="text-slate-800 font-medium">{turningAge}</p>
               </div>
             )}
-
             <div className="col-span-2 space-y-1">
               <label className="text-[10px] uppercase font-bold text-slate-400 flex items-center gap-1">
                 <Phone size={12} /> Phone
               </label>
               <div className="text-slate-800 font-medium font-mono">
-                {phoneToUse ? (
-                  <span>{phoneToUse} {parentContact && <span className="text-xs text-slate-400 ml-2">(Parent)</span>}</span>
-                ) : (
-                  <span className="text-slate-400 italic">No number added</span>
-                )}
+                {phoneToUse
+                  ? <span>{phoneToUse} {parentContact && <span className="text-xs text-slate-400 ml-2 font-sans">(via {parentContact.name})</span>}</span>
+                  : <span className="text-slate-400 italic font-sans text-sm">No number added</span>
+                }
               </div>
             </div>
           </div>
 
-          {/* Notes Section */}
+          {/* Notes */}
           <div className="bg-amber-50 border border-amber-100 rounded-xl p-4">
             <label className="text-[10px] uppercase font-bold text-amber-500 flex items-center gap-1 mb-2">
               <StickyNote size={12} /> Notes
             </label>
             <p className="text-sm text-amber-900 leading-relaxed whitespace-pre-wrap">
-              {contact.notes || "No notes yet."}
+              {contact.notes || 'No notes yet.'}
             </p>
           </div>
 
-          {/* Actions Section */}
+          {/* Linked events */}
+          {contactEvents.length > 0 && (
+            <div>
+              <h3 className="text-sm font-bold text-slate-800 mb-2 flex items-center gap-2">
+                <PartyPopper size={14} className="text-purple-500" /> Parties & Events
+              </h3>
+              <div className="space-y-2">
+                {contactEvents.map(e => {
+                  const d = new Date(e.date);
+                  return (
+                    <div key={e.id} className="bg-purple-50 border border-purple-100 rounded-xl p-3">
+                      <div className="flex items-center justify-between mb-1">
+                        <span className="font-semibold text-slate-800 text-sm">{e.name}</span>
+                        <span className="text-[10px] font-bold text-purple-600 bg-purple-100 px-2 py-0.5 rounded-full">
+                          {RSVP_LABELS[e.rsvpStatus] ?? e.rsvpStatus}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1.5 text-xs text-slate-500">
+                        <Calendar size={12} />
+                        <span>{d.toLocaleDateString([], { day: 'numeric', month: 'short' })} · {d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                      </div>
+                      {e.location && (
+                        <div className="flex items-center gap-1.5 text-xs text-slate-500 mt-0.5">
+                          <MapPin size={12} />
+                          <span>{e.location}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Send a wish */}
           <div className="space-y-3 pt-2">
             <h3 className="text-sm font-bold text-slate-800">
               Send a Wish {parentContact ? `to ${parentContact.name}` : ''}
             </h3>
-
             <button
               onClick={() => setShowAI(true)}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-indigo-50 text-indigo-700 font-bold border border-indigo-100 hover:bg-indigo-100 transition-colors"
             >
-              <Sparkles size={18} />
-              Write with AI
+              <Sparkles size={18} /> Write with AI
             </button>
-
             <div className="grid grid-cols-1 gap-2">
               {PRESET_MESSAGES.map((m) => (
                 <button
@@ -154,10 +183,9 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
                 </button>
               ))}
             </div>
-
             {!phoneToUse && (
               <p className="text-[10px] text-center text-slate-400 mt-2">
-                Note: WhatsApp will open without a contact selected because no phone number is saved.
+                WhatsApp will open without a pre-selected contact — no phone number saved.
               </p>
             )}
           </div>
@@ -169,10 +197,7 @@ export const ContactDetailModal: React.FC<Props> = ({ contact, parentContact, on
           contact={contact}
           parentName={parentContact?.name}
           onClose={() => setShowAI(false)}
-          onUse={(msg) => {
-            handleWhatsApp(msg);
-            setShowAI(false);
-          }}
+          onUse={(msg) => { handleWhatsApp(msg); setShowAI(false); }}
         />
       )}
     </div>

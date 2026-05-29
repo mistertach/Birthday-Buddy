@@ -1,6 +1,25 @@
 import React from 'react';
 import { PartyEvent } from '@/lib/types';
-import { Calendar, MapPin, Gift, CheckCircle, Circle } from 'lucide-react';
+import { Calendar, MapPin, Gift } from 'lucide-react';
+
+const GIFT_LABELS: Record<string, string> = {
+    NONE: 'No gift yet',
+    IDEA: 'Have an idea',
+    BOUGHT: 'Bought',
+    WRAPPED: 'Wrapped & ready',
+};
+
+const RSVP_LABELS: Record<string, string> = {
+    PENDING: 'Pending',
+    GOING: 'Going',
+    NOT_GOING: 'Not Going',
+};
+
+const RSVP_COLORS: Record<string, string> = {
+    GOING: 'bg-green-50 text-green-600',
+    NOT_GOING: 'bg-red-50 text-red-500',
+    PENDING: 'bg-slate-50 text-slate-400',
+};
 
 interface EventCardProps {
     event: PartyEvent;
@@ -8,29 +27,28 @@ interface EventCardProps {
 }
 
 export const EventCard: React.FC<EventCardProps> = ({ event, onEdit }) => {
-    const isGiftWrapped = event.giftStatus === 'WRAPPED';
-    const isGiftBought = event.giftStatus === 'BOUGHT';
-
     let giftColor = 'text-slate-300';
     if (event.giftStatus === 'IDEA') giftColor = 'text-amber-500';
-    if (isGiftBought) giftColor = 'text-indigo-500';
-    if (isGiftWrapped) giftColor = 'text-green-500';
+    if (event.giftStatus === 'BOUGHT') giftColor = 'text-indigo-500';
+    if (event.giftStatus === 'WRAPPED') giftColor = 'text-green-500';
 
     return (
         <div
             onClick={() => onEdit(event)}
-            className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-all cursor-pointer mb-3 group"
+            className="bg-white rounded-xl border border-slate-100 p-4 shadow-sm hover:shadow-md transition-all cursor-pointer mb-3"
         >
             <div className="flex justify-between items-start mb-2">
                 <h3 className="font-bold text-slate-800">{event.name}</h3>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${event.rsvpStatus === 'GOING' ? 'bg-green-50 text-green-600' : 'bg-slate-50 text-slate-400'}`}>
-                    {event.rsvpStatus}
+                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${RSVP_COLORS[event.rsvpStatus] ?? 'bg-slate-50 text-slate-400'}`}>
+                    {RSVP_LABELS[event.rsvpStatus] ?? event.rsvpStatus}
                 </span>
             </div>
 
             <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
                 <Calendar size={14} className="text-slate-400" />
-                <span>{new Date(event.date).toLocaleDateString()} • {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+                <span>
+                    {new Date(event.date).toLocaleDateString()} · {new Date(event.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </span>
             </div>
 
             {event.location && (
@@ -43,15 +61,15 @@ export const EventCard: React.FC<EventCardProps> = ({ event, onEdit }) => {
             <div className="pt-3 border-t border-slate-50 flex justify-between items-center">
                 <div className="flex items-center gap-1.5 text-xs font-medium">
                     <Gift size={14} className={giftColor} />
-                    <span className={giftColor}>{event.giftStatus}</span>
-                    {event.giftBudget && <span className="text-slate-400">• ${event.giftBudget}</span>}
+                    <span className={giftColor}>{GIFT_LABELS[event.giftStatus] ?? event.giftStatus}</span>
+                    {event.giftBudget && <span className="text-slate-400">· ${event.giftBudget}</span>}
                 </div>
 
-                {/* Visual Gifts Progress */}
+                {/* Gift progress dots */}
                 <div className="flex gap-1">
-                    <div className={`w-2 h-2 rounded-full ${event.giftStatus !== 'NONE' ? 'bg-indigo-500' : 'bg-slate-100'}`}></div>
-                    <div className={`w-2 h-2 rounded-full ${['BOUGHT', 'WRAPPED'].includes(event.giftStatus) ? 'bg-indigo-500' : 'bg-slate-100'}`}></div>
-                    <div className={`w-2 h-2 rounded-full ${event.giftStatus === 'WRAPPED' ? 'bg-green-500' : 'bg-slate-100'}`}></div>
+                    <div className={`w-2 h-2 rounded-full ${event.giftStatus !== 'NONE' ? 'bg-indigo-500' : 'bg-slate-100'}`} />
+                    <div className={`w-2 h-2 rounded-full ${['BOUGHT', 'WRAPPED'].includes(event.giftStatus) ? 'bg-indigo-500' : 'bg-slate-100'}`} />
+                    <div className={`w-2 h-2 rounded-full ${event.giftStatus === 'WRAPPED' ? 'bg-green-500' : 'bg-slate-100'}`} />
                 </div>
             </div>
         </div>

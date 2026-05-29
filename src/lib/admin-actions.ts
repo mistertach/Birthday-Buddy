@@ -402,7 +402,7 @@ export async function getCategories() {
     const dbCategories = await prisma.category.findMany({
         select: { name: true }
     });
-    const customNames = dbCategories.map(c => c.name);
+    const customNames = dbCategories.map((c: { name: string }) => c.name);
 
     return Array.from(new Set([...defaultCategories, ...customNames])).sort();
 }

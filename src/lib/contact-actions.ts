@@ -175,7 +175,7 @@ export async function getGlobalCategories() {
         select: { name: true }
     });
 
-    const customNames = dbCategories.map(c => c.name);
+    const customNames = dbCategories.map((c: { name: string }) => c.name);
 
     // Merge and deduplicate
     return Array.from(new Set([...defaultCategories, ...customNames])).sort();
