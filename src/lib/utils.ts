@@ -157,30 +157,32 @@ export const getAgeTurning = (day: number, month: number, year?: number): number
 };
 
 /**
- * Determines the status of the birthday relative to the current calendar year.
+ * Determines the status of the birthday.
+ * 'missed' = birthday passed within the last 7 days and not yet wished.
+ *   Also covers the year-wrap case (e.g. Dec 31 birthday, today is Jan 3).
  */
 export const getBirthdayStatus = (contact: Contact): 'wished' | 'missed' | 'today' | 'upcoming' => {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const currentYear = today.getFullYear();
-  const currentMonth = today.getMonth(); // 0-11
+  const msPerDay = 1000 * 60 * 60 * 24;
 
-  // 1. Check if explicitly wished this year
-  if (contact.lastWishedYear === currentYear) {
-    return 'wished';
-  }
+  if (contact.lastWishedYear === currentYear) return 'wished';
 
-  // 2. Check date logic
   const bMonthIdx = contact.month - 1;
   const thisYearBday = new Date(currentYear, bMonthIdx, contact.day);
 
-  if (thisYearBday.getTime() === today.getTime()) {
-    return 'today';
-  }
+  if (thisYearBday.getTime() === today.getTime()) return 'today';
 
-  // Only mark as MISSED if it is in the CURRENT MONTH and has passed.
-  if (thisYearBday < today && bMonthIdx === currentMonth) {
-    return 'missed';
+  // Missed = passed within last 7 days (this year)
+  const daysAgoThisYear = Math.round((today.getTime() - thisYearBday.getTime()) / msPerDay);
+  if (daysAgoThisYear > 0 && daysAgoThisYear <= 7) return 'missed';
+
+  // Year-wrap: December birthday, today is early January
+  if (contact.lastWishedYear !== currentYear - 1) {
+    const lastYearBday = new Date(currentYear - 1, bMonthIdx, contact.day);
+    const daysAgoLastYear = Math.round((today.getTime() - lastYearBday.getTime()) / msPerDay);
+    if (daysAgoLastYear > 0 && daysAgoLastYear <= 7) return 'missed';
   }
 
   return 'upcoming';

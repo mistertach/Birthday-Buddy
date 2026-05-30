@@ -85,6 +85,9 @@ export default function RegisterForm({ callbackUrl, senderName, recipientEmail }
                         {state?.error && (
                             <p className="text-sm text-red-500">{state.error}</p>
                         )}
+                        {state?.errors?.email && (
+                            <p className="text-sm text-red-500">Please enter a valid email address (e.g. you@example.com).</p>
+                        )}
                     </div>
                 </form>
 

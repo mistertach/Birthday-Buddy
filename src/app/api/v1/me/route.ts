@@ -18,6 +18,7 @@ export async function GET(req: NextRequest) {
             wantsEmailNotifications: true,
             wishesDelivered: true,
             streak: true,
+            plan: true,
         },
     });
     if (!user) {

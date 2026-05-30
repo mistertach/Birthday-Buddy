@@ -31,6 +31,9 @@ model User {
   wishesDelivered Int      @default(0)
   streak          Int      @default(0)
   lastWishDate    DateTime?
+
+  // Subscription
+  plan            String   @default("free") // "free" | "premium"
 }
 
 model AppSettings {
