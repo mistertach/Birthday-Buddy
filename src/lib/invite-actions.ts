@@ -7,7 +7,7 @@ import { revalidatePath } from 'next/cache';
 import crypto from 'crypto';
 
 
-export async function createInvitation(recipientEmail: string, contactIds: string[]) {
+export async function createInvitation(recipientEmail: string, contactIds: string[], shareSenderBirthday = false) {
     try {
         const session = await auth();
         if (!session?.user?.email) {
@@ -35,12 +35,17 @@ export async function createInvitation(recipientEmail: string, contactIds: strin
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7); // Expires in 7 days
 
+        // Encode shareSenderBirthday as a sentinel in the contactIds array.
+        // '__SENDER_BIRTHDAY__' is stripped at accept time and handled specially.
+        const allIds = [...contactIds];
+        if (shareSenderBirthday) allIds.push('__SENDER_BIRTHDAY__');
+
         const invitation = await prisma.invitation.create({
             data: {
                 token,
                 senderId: sender.id,
                 recipientEmail,
-                sharedContactIds: contactIds,
+                sharedContactIds: allIds,
                 expiresAt,
             },
         });
@@ -94,11 +99,13 @@ export async function getInvitationByToken(token: string) {
             return { error: 'USED', message: 'This invitation has already been used.' };
         }
 
-        // Fetch the summary of contacts being shared (just counts or names?)
-        // Let's return the simplified contacts so the user sees what they are getting
+        // Filter sentinel before querying contacts
+        const hasSenderBday = invitation.sharedContactIds.includes('__SENDER_BIRTHDAY__');
+        const realIds = invitation.sharedContactIds.filter(id => id !== '__SENDER_BIRTHDAY__');
+
         const sharedContacts = await prisma.contact.findMany({
             where: {
-                id: { in: invitation.sharedContactIds }
+                id: { in: realIds }
             },
             select: {
                 id: true,
@@ -109,7 +116,8 @@ export async function getInvitationByToken(token: string) {
 
         return {
             invitation,
-            sharedContacts
+            sharedContacts,
+            hasSenderBirthday: hasSenderBday,
         };
     } catch (error) {
         console.error('Failed to fetch invitation:', error);
@@ -143,9 +151,13 @@ export async function acceptInvitation(token: string, selectedContactIds?: strin
         // Determine which IDs to actually import.
         // If selectedContactIds is provided, intersect with invitation.sharedContactIds for security.
         // If not provided (legacy/default), import all shared.
-        let idsToImport = invitation.sharedContactIds;
+        // Separate sentinel from real contact IDs
+        const hasSenderBirthday = invitation.sharedContactIds.includes('__SENDER_BIRTHDAY__');
+        const realContactIds = invitation.sharedContactIds.filter(id => id !== '__SENDER_BIRTHDAY__');
+
+        let idsToImport = realContactIds;
         if (selectedContactIds && Array.isArray(selectedContactIds)) {
-            const allowedSet = new Set(invitation.sharedContactIds);
+            const allowedSet = new Set(realContactIds);
             idsToImport = selectedContactIds.filter(id => allowedSet.has(id));
         }
 
@@ -157,6 +169,13 @@ export async function acceptInvitation(token: string, selectedContactIds?: strin
         });
 
         // Prepare data for new contacts
+        // Fetch the sender's name for the notes attribution
+        const inviteSender = await prisma.user.findUnique({
+            where: { id: invitation.senderId },
+            select: { name: true },
+        });
+        const senderLabel = inviteSender?.name || 'a friend';
+
         const newContactsData = originalContacts.map((c: any) => ({
             userId: user.id,
             name: c.name,
@@ -166,14 +185,32 @@ export async function acceptInvitation(token: string, selectedContactIds?: strin
             phone: c.phone,
             relationship: c.relationship,
             reminderType: c.reminderType,
-            notes: c.notes ? `${c.notes} (Shared by ${invitation.recipientEmail})` : `Shared contact`, // Ideally sender name but we only have ID here easily
-            // We ignore parentId and lastWishedYear
+            notes: c.notes ? `${c.notes} (Shared by ${senderLabel})` : `Shared by ${senderLabel}`,
         }));
 
         if (newContactsData.length > 0) {
-            await prisma.contact.createMany({
-                data: newContactsData
+            await prisma.contact.createMany({ data: newContactsData });
+        }
+
+        // If sender shared their own birthday, add them as a contact too
+        if (hasSenderBirthday) {
+            const senderFull = await prisma.user.findUnique({
+                where: { id: invitation.senderId },
+                select: { name: true, birthdayDay: true, birthdayMonth: true },
             });
+            if (senderFull?.birthdayDay && senderFull?.birthdayMonth && senderFull?.name) {
+                await prisma.contact.create({
+                    data: {
+                        userId: user.id,
+                        name: senderFull.name,
+                        day: senderFull.birthdayDay,
+                        month: senderFull.birthdayMonth,
+                        relationship: 'Friend',
+                        reminderType: 'Morning of',
+                        notes: 'Added from Birthday Buddy invite',
+                    },
+                });
+            }
         }
 
         // Update invitation status

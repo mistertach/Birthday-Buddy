@@ -13,7 +13,13 @@ export default async function DashboardPage() {
         redirect('/login');
     }
 
-    const contacts = await getContacts();
+    const [contacts, rawUser, rawEvents] = await Promise.all([
+        getContacts(),
+        session.user?.email
+            ? prisma.user.findUnique({ where: { email: session.user.email } })
+            : null,
+        getEvents(),
+    ]);
 
     const normalizedContacts: Contact[] = contacts.map((contact: any) => ({
         id: contact.id,
@@ -29,23 +35,6 @@ export default async function DashboardPage() {
         parentId: contact.parentId ?? undefined,
     }));
 
-    const rawUser = session.user?.email
-        ? await prisma.user.findUnique({
-            where: { email: session.user.email },
-        })
-        : null;
-
-    const isAdmin = rawUser?.isAdmin ?? false;
-    const notificationPref = rawUser?.wantsEmailNotifications ?? true;
-
-    // Fetch global categories
-    const { getGlobalCategories } = await import('@/lib/contact-actions');
-    const categories = await getGlobalCategories();
-
-    const streak = rawUser?.streak ?? 0;
-    const wishesDelivered = rawUser?.wishesDelivered ?? 0;
-
-    const rawEvents = await getEvents();
     const events: PartyEvent[] = rawEvents.map((e: any) => ({
         ...e,
         giftStatus: (e.giftStatus as any) || 'NONE',
@@ -53,19 +42,56 @@ export default async function DashboardPage() {
         location: e.location ?? null,
         contactId: e.contactId ?? null,
         giftBudget: e.giftBudget ?? null,
-        giftNotes: e.giftNotes ?? null
+        giftNotes: e.giftNotes ?? null,
     }));
+
+    const { getGlobalCategories } = await import('@/lib/contact-actions');
+    const categories = await getGlobalCategories();
+
+    // ── Pending invitation for this user (they may have registered via invite link
+    //    but not yet accepted it — show a recovery banner on the dashboard)
+    const pendingInvitation = session.user.email
+        ? await prisma.invitation.findFirst({
+            where: {
+                recipientEmail: session.user.email,
+                status: 'PENDING',
+                expiresAt: { gt: new Date() },
+            },
+            include: {
+                sender: { select: { name: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+        })
+        : null;
+
+    // ── Count pending contact shares so the client can decide whether to show the notification
+    const pendingSharesCount = rawUser
+        ? await prisma.contactShare.count({
+            where: { recipientId: rawUser.id, status: 'PENDING' },
+        })
+        : 0;
 
     return (
         <DashboardClient
             initialContacts={normalizedContacts}
             initialEvents={events}
             userName={session.user.name}
-            isAdmin={isAdmin}
+            isAdmin={rawUser?.isAdmin ?? false}
             initialCategories={categories}
-            initialNotificationPref={notificationPref}
-            stats={{ streak, wishesDelivered }}
+            initialNotificationPref={rawUser?.wantsEmailNotifications ?? true}
+            stats={{ streak: rawUser?.streak ?? 0, wishesDelivered: rawUser?.wishesDelivered ?? 0 }}
+            isMyBirthday={!!(rawUser?.birthdayDay && rawUser?.birthdayMonth &&
+            rawUser.birthdayDay === new Date().getDate() &&
+            rawUser.birthdayMonth === new Date().getMonth() + 1)}
+        userBirthday={rawUser?.birthdayDay && rawUser?.birthdayMonth
+            ? { day: rawUser.birthdayDay, month: rawUser.birthdayMonth }
+            : null}
+        pendingInvitation={pendingInvitation ? {
+                token: pendingInvitation.token,
+                senderName: pendingInvitation.sender?.name ?? null,
+                contactCount: pendingInvitation.sharedContactIds.length,
+            } : null}
+            hasPendingShares={pendingSharesCount > 0}
         />
     );
 }
-

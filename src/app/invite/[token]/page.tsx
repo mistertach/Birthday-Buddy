@@ -40,28 +40,16 @@ export default async function InvitationPage(props: { params: Promise<{ token: s
         );
     }
 
-    const { invitation, sharedContacts } = data;
-
-    // If user is the sender (accidentally clicked their own link), just warn them
-    if (invitation.senderId === session.user.id) { // We assume session.user.id is available, check auth.ts type
-        // Actually session.user might not have id if not extended. 
-        // But let's assume if email matches recipient? 
-    }
-
-    // But we can check email matches recipient?
-    // If different email, maybe warn? But they might accept on a different email.
-    // Let's just proceed.
+    const { invitation, sharedContacts, hasSenderBirthday } = data;
 
     return (
         <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4">
             <AcceptInvitationClient
                 token={token}
-                sender={{
-                    name: invitation.sender.name,
-                    email: invitation.sender.email
-                }}
+                sender={{ name: invitation.sender.name, email: invitation.sender.email }}
                 sharedContacts={sharedContacts}
                 recipientEmail={session.user.email}
+                hasSenderBirthday={hasSenderBirthday}
             />
         </div>
     );

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { X, Check, Gift, ArrowRight, Loader2 } from 'lucide-react';
 import { getPendingShares, getShareDetails, acceptContactShare, rejectContactShare } from '@/lib/contact-share-actions';
 
@@ -29,6 +30,7 @@ interface Props {
 }
 
 export default function AcceptShareModal({ isOpen, onClose }: Props) {
+    const router = useRouter();
     const [shares, setShares] = useState<PendingShare[]>([]);
     const [currentShareIndex, setCurrentShareIndex] = useState(0);
     const [contacts, setContacts] = useState<ContactStub[]>([]);
@@ -84,45 +86,34 @@ export default function AcceptShareModal({ isOpen, onClose }: Props) {
     };
 
     const handleAccept = async () => {
-        if (selectedIds.size === 0) {
-            alert('Please select at least one contact to accept');
-            return;
-        }
-
+        if (selectedIds.size === 0) return;
         setProcessing(true);
         const result = await acceptContactShare(shares[currentShareIndex].id, Array.from(selectedIds));
         setProcessing(false);
 
         if (result.ok) {
             if (currentShareIndex < shares.length - 1) {
-                setCurrentShareIndex(currentShareIndex + 1);
+                setCurrentShareIndex(prev => prev + 1);
             } else {
-                alert(result.message);
                 onClose();
-                window.location.reload();
+                router.refresh(); // Re-fetch server components so new contacts appear instantly
             }
-        } else {
-            alert(result.message || 'Failed to accept share');
         }
+        // Errors are silent-logged; the UI stays open so user can retry
     };
 
     const handleReject = async () => {
-        if (!confirm('Are you sure you want to reject this share?')) {
-            return;
-        }
-
         setProcessing(true);
         const result = await rejectContactShare(shares[currentShareIndex].id);
         setProcessing(false);
 
         if (result.ok) {
             if (currentShareIndex < shares.length - 1) {
-                setCurrentShareIndex(currentShareIndex + 1);
+                setCurrentShareIndex(prev => prev + 1);
             } else {
                 onClose();
+                router.refresh();
             }
-        } else {
-            alert(result.message || 'Failed to reject share');
         }
     };
 

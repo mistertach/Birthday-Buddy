@@ -16,9 +16,10 @@ interface Props {
     sender: { name: string | null; email: string | null };
     sharedContacts: SharedContactStub[];
     recipientEmail: string;
+    hasSenderBirthday?: boolean;
 }
 
-export default function AcceptInvitationClient({ token, sender, sharedContacts, recipientEmail }: Props) {
+export default function AcceptInvitationClient({ token, sender, sharedContacts, recipientEmail, hasSenderBirthday }: Props) {
     const router = useRouter();
     const [isPending, startTransition] = useTransition();
     const [accepted, setAccepted] = useState(false);
@@ -29,10 +30,11 @@ export default function AcceptInvitationClient({ token, sender, sharedContacts, 
             const result = await acceptInvitation(token, Array.from(selectedIds));
             if (result.ok) {
                 setAccepted(true);
-                // Wait a moment then redirect
+                // Refresh server cache so the new contacts appear the moment we land on /dashboard
+                router.refresh();
                 setTimeout(() => {
                     router.push('/dashboard');
-                }, 1500);
+                }, 1200);
             } else {
                 alert(result.message || 'Failed to accept invitation');
             }
@@ -82,8 +84,13 @@ export default function AcceptInvitationClient({ token, sender, sharedContacts, 
                     {sender.name || 'A friend'} invited you!
                 </h1>
                 <p className="text-slate-600">
-                    They want to share <strong>{sharedContacts.length} birthday contacts</strong> with you. Pick the ones you want to keep!
+                    They want to share <strong>{sharedContacts.length} birthday contact{sharedContacts.length !== 1 ? 's' : ''}</strong> with you. Pick the ones you want to keep!
                 </p>
+                {hasSenderBirthday && (
+                    <div className="mt-3 inline-flex items-center gap-2 bg-pink-50 text-pink-700 px-3 py-1.5 rounded-full text-sm font-medium border border-pink-100">
+                        🎂 {sender.name ?? 'Their'} birthday will also be added to your list
+                    </div>
+                )}
             </div>
 
             <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm mb-8">

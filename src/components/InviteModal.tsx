@@ -1,5 +1,6 @@
 import React, { useState, useMemo } from 'react';
-import { X, Send, Search, Check, Users, UserPlus, Share2, Loader2 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { X, Send, Search, Check, Users, UserPlus, Share2, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { type Contact } from '@/lib/types';
 import { createInvitation } from '@/lib/invite-actions';
 import { checkUserExists, createContactShare } from '@/lib/contact-share-actions';
@@ -7,11 +8,18 @@ import { checkUserExists, createContactShare } from '@/lib/contact-share-actions
 interface Props {
     onClose: () => void;
     contacts: Contact[];
+    userBirthday?: { day: number; month: number };
+    userName?: string;
 }
 
 type Mode = 'invite' | 'share';
 
-export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
+const MONTHS_SHORT = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+
+export const InviteModal: React.FC<Props> = ({ onClose, contacts, userBirthday, userName }) => {
+    const router = useRouter();
+    // When the user has a birthday set, default to sharing it with the invite
+    const [shareSelfBirthday, setShareSelfBirthday] = useState(!!userBirthday);
     const [mode, setMode] = useState<Mode>('invite');
     const [step, setStep] = useState<'details' | 'select'>('details');
     const [friendEmail, setFriendEmail] = useState('');
@@ -21,6 +29,7 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
     const [selectedCategory, setSelectedCategory] = useState<string>('All');
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [userExistsStatus, setUserExistsStatus] = useState<'idle' | 'checking' | 'exists' | 'not-exists'>('idle');
+    const [resultMsg, setResultMsg] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
     // Extract unique categories from contacts
     const categories = useMemo(() => {
@@ -56,30 +65,21 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
 
     const handleSubmit = async () => {
         if (!friendEmail) return;
-
+        setResultMsg(null);
         setIsSubmitting(true);
         try {
-            if (mode === 'invite') {
-                const result = await createInvitation(friendEmail, Array.from(selectedContactIds));
-                if (result.ok) {
-                    alert(result.message);
-                    onClose();
-                } else {
-                    alert(result.message || 'Failed to send invitation');
-                }
+            const result = mode === 'invite'
+                ? await createInvitation(friendEmail, Array.from(selectedContactIds), shareSelfBirthday)
+                : await createContactShare(friendEmail, Array.from(selectedContactIds), shareMessage || undefined);
+
+            if (result.ok) {
+                setResultMsg({ type: 'success', text: result.message || 'Sent!' });
+                setTimeout(() => onClose(), 1800);
             } else {
-                // Share mode
-                const result = await createContactShare(friendEmail, Array.from(selectedContactIds), shareMessage || undefined);
-                if (result.ok) {
-                    alert(result.message);
-                    onClose();
-                } else {
-                    alert(result.message || 'Failed to share contacts');
-                }
+                setResultMsg({ type: 'error', text: result.message || 'Something went wrong' });
             }
-        } catch (error) {
-            console.error('Submit error:', error);
-            alert('An unexpected error occurred');
+        } catch {
+            setResultMsg({ type: 'error', text: 'An unexpected error occurred' });
         } finally {
             setIsSubmitting(false);
         }
@@ -225,6 +225,24 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                                     {selectedContactIds.size} contact{selectedContactIds.size !== 1 ? 's' : ''} selected to share
                                 </div>
                             )}
+
+                            {/* Share own birthday toggle */}
+                            {userBirthday && mode === 'invite' && (
+                                <div
+                                    onClick={() => setShareSelfBirthday(p => !p)}
+                                    className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${shareSelfBirthday ? 'bg-pink-50 border-pink-200' : 'bg-slate-50 border-slate-200'}`}
+                                >
+                                    <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 transition-colors ${shareSelfBirthday ? 'bg-pink-500 border-pink-500' : 'border-slate-300 bg-white'}`}>
+                                        {shareSelfBirthday && <Check size={12} className="text-white" strokeWidth={3} />}
+                                    </div>
+                                    <div>
+                                        <p className="text-sm font-semibold text-slate-800">Share my birthday too</p>
+                                        <p className="text-xs text-slate-500">
+                                            {userName ? `${userName}'s birthday` : 'Your birthday'} — {MONTHS_SHORT[userBirthday.month - 1]} {userBirthday.day} — will be added to their Birthday Buddy
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     ) : (
                         <div className="flex flex-col h-full">
@@ -306,7 +324,16 @@ export const InviteModal: React.FC<Props> = ({ onClose, contacts }) => {
                 </div>
 
                 {/* Footer */}
-                <div className="p-6 border-t border-gray-100 flex-shrink-0">
+                <div className="p-6 border-t border-gray-100 flex-shrink-0 space-y-3">
+                    {resultMsg && (
+                        <div className={`flex items-center gap-2 px-4 py-2.5 rounded-xl text-sm font-medium
+                            ${resultMsg.type === 'success' ? 'bg-green-50 text-green-700 border border-green-100' : 'bg-red-50 text-red-700 border border-red-100'}`}>
+                            {resultMsg.type === 'success'
+                                ? <CheckCircle2 size={16} className="flex-shrink-0" />
+                                : <AlertCircle size={16} className="flex-shrink-0" />}
+                            {resultMsg.text}
+                        </div>
+                    )}
                     <button
                         onClick={handleSubmit}
                         disabled={!friendEmail || isSubmitting || (mode === 'share' && userExistsStatus === 'not-exists')}

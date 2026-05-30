@@ -34,6 +34,10 @@ model User {
 
   // Subscription
   plan            String   @default("free") // "free" | "premium"
+
+  // User's own birthday (for self-celebration and auto-sharing in invites)
+  birthdayDay     Int?
+  birthdayMonth   Int?
 }
 
 model AppSettings {

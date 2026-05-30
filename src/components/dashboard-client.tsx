@@ -11,6 +11,7 @@ import { ContactDetailModal } from '@/components/ContactDetailModal';
 import { SettingsModal } from '@/components/SettingsModal';
 import { InviteModal } from '@/components/InviteModal';
 import AcceptShareModal from '@/components/AcceptShareModal';
+import PendingSharesNotification from '@/components/PendingSharesNotification';
 import { AddEditEvent } from '@/components/AddEditEvent';
 import { EventCard } from '@/components/EventCard';
 import {
@@ -32,6 +33,14 @@ interface DashboardClientProps {
         streak: number;
         wishesDelivered: number;
     };
+    pendingInvitation?: {
+        token: string;
+        senderName: string | null;
+        contactCount: number;
+    } | null;
+    hasPendingShares?: boolean;
+    isMyBirthday?: boolean;
+    userBirthday?: { day: number; month: number } | null;
 }
 
 // --- Small helpers ---
@@ -57,6 +66,10 @@ export default function DashboardClient({
     initialCategories,
     initialNotificationPref,
     stats,
+    pendingInvitation,
+    hasPendingShares,
+    isMyBirthday,
+    userBirthday,
 }: DashboardClientProps) {
     const router = useRouter();
 
@@ -153,9 +166,9 @@ export default function DashboardClient({
         return items.sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 10);
     }, [contacts, events]);
 
-    // --- Auto-celebrate today's birthdays ---
+    // --- Auto-celebrate today's birthdays + user's own birthday ---
     useEffect(() => {
-        const hasBirthdayToday = contacts.some(c => getBirthdayStatus(c) === 'today');
+        const hasBirthdayToday = isMyBirthday || contacts.some(c => getBirthdayStatus(c) === 'today');
         if (hasBirthdayToday) {
             const duration = 3 * 1000;
             const animationEnd = Date.now() + duration;
@@ -602,6 +615,38 @@ export default function DashboardClient({
 
             <main className="p-4 space-y-4">
 
+                {/* ── Self-birthday celebration banner ── */}
+                {isMyBirthday && (
+                    <div className="flex items-center gap-3 bg-gradient-to-r from-pink-500 to-rose-500 text-white px-4 py-3 rounded-xl animate-fade-in">
+                        <span className="text-2xl">🎂</span>
+                        <div>
+                            <p className="font-bold">Happy Birthday, {userName?.split(' ')[0]}! 🎉</p>
+                            <p className="text-xs text-white/80">Wishing you an incredible day — you deserve it!</p>
+                        </div>
+                    </div>
+                )}
+
+                {/* ── Pending invitation banner ── */}
+                {pendingInvitation && (
+                    <a
+                        href={`/invite/${pendingInvitation.token}`}
+                        className="flex items-center gap-3 bg-gradient-to-r from-indigo-500 to-purple-600 text-white px-4 py-3 rounded-xl animate-fade-in"
+                    >
+                        <span className="text-xl">🎁</span>
+                        <div className="flex-1 min-w-0">
+                            <p className="font-semibold text-sm">
+                                {pendingInvitation.senderName ?? 'A friend'} shared {pendingInvitation.contactCount} birthday{pendingInvitation.contactCount !== 1 ? 's' : ''} with you!
+                            </p>
+                            <p className="text-xs text-white/80">Tap to review and add them →</p>
+                        </div>
+                    </a>
+                )}
+
+                {/* ── Pending contact-share notification ── */}
+                {hasPendingShares && (
+                    <PendingSharesNotification onViewShares={() => setShowShareModal(true)} />
+                )}
+
                 {/* Next Up (only on birthdays tab, no active search) */}
                 {view === 'birthdays' && nextUpItems.length > 0 && !searchQuery && filterRel === 'All' && (
                     <div className="pt-2 animate-fade-in mb-2">
@@ -854,7 +899,7 @@ export default function DashboardClient({
             )}
 
             {showInviteModal && (
-                <InviteModal contacts={contacts} onClose={() => setShowInviteModal(false)} />
+                <InviteModal contacts={contacts} onClose={() => setShowInviteModal(false)} userBirthday={userBirthday ?? undefined} userName={userName ?? undefined} />
             )}
 
             <AcceptShareModal isOpen={showShareModal} onClose={() => setShowShareModal(false)} />
