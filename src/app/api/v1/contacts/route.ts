@@ -11,6 +11,7 @@ const ContactInputSchema = z.object({
     phone: z.string().nullable().optional(),
     relationship: z.string().nullable().optional(),
     reminderType: z.string().nullable().optional(),
+    givesGifts: z.boolean().optional(),
     notes: z.string().nullable().optional(),
     parentId: z.string().nullable().optional(),
 });

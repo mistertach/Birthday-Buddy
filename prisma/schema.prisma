@@ -93,6 +93,7 @@ model Contact {
   phone          String?
   relationship   String?
   reminderType   String?
+  givesGifts     Boolean  @default(false)
   notes          String?
   lastWishedYear Int?
   parentId       String?
