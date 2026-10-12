@@ -26,6 +26,7 @@ model User {
   sentShares     ContactShare[] @relation("SentShares")
   receivedShares ContactShare[] @relation("ReceivedShares")
   passwordResetTokens PasswordResetToken[]
+  mobileMagicLinkTokens MobileMagicLinkToken[]
 
   // Gamification
   wishesDelivered Int      @default(0)
@@ -162,7 +163,19 @@ model PasswordResetToken {
   token     String   @unique
   expiresAt DateTime
   createdAt DateTime @default(now())
-  
+
+  @@index([userId])
+  @@index([token])
+}
+
+model MobileMagicLinkToken {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
   @@index([userId])
   @@index([token])
 }
